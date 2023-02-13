@@ -13,7 +13,11 @@
 % Purpose: This file is used to track/visualise changes in the particle
 % size distribution over a given time range as simulated by the function:
 % HighRes1D.
+%
 % References: 
+% (1) LeVeque, R.J., 2002. Finite Volume Methods for Hyperbolic Problems, Cambridge Texts in Applied Mathematics. Cambridge University Press, Cambridge. https://doi.org/10.1017/CBO9780511791253
+% (2) Gunawan, R., Fusman, I., Braatz, R.D., 2004. High resolution algorithms for multidimensional population balance equations. AIChE Journal 50. https://doi.org/10.1002/aic.10228
+% (3) Ma, D.L., Tafti, D.K., Braatz, R.D., 2002. High-resolution simulation of multidimensional crystal growth. Industrial and Engineering Chemistry Research 41. https://doi.org/10.1021/ie010680u
 %
 % Input Arguments:
 % dL: Scalar representing the length of the length step
