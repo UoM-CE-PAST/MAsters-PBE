@@ -27,7 +27,7 @@ rhoc = 1.46e-12; % g/um3
 
 y0 = [m0i m1i m2i m3i c0];
 tspan = [0 100];
-[t, y] = ode45(@(t, y)mom(t, y, ce, k1, k2, m0i, rhoc, kv), tspan, y0);
+[t, y] = ode45(@(t, y)mom(y, ce, k1, k2, rhoc, kv), tspan, y0);
 
 %% Plot of moments
 

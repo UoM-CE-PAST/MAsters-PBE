@@ -5,10 +5,13 @@ ___
 This repository contains the code used in simulating population balance equation models for the completion of a MEng project at The University of Manchester. This code has been developed in MATLAB by Mohammed Alsubeihi working under the supervision of Dr. Ashwin Kumar Rajagopalan.
 
 ___
+
 # Installation
 
 ## Dependencies
+
 * MATLAB R2022b [*required*]
+
 ## Installation instructions
 
 1. Clone the full software package from the GitHub server into the preferred installation directory using the following command:
@@ -21,11 +24,11 @@ ___
 
 # References
 
-(1) LeVeque, R.J., 2002. Finite Volume Methods for Hyperbolic Problems, Cambridge Texts in Applied Mathematics. Cambridge University Press, Cambridge. https://doi.org/10.1017/CBO9780511791253
+(1) LeVeque, R.J., 2002. Finite Volume Methods for Hyperbolic Problems, Cambridge Texts in Applied Mathematics. Cambridge University Press, Cambridge. [https://doi.org/10.1017/CBO9780511791253](https://doi.org/10.1017/CBO9780511791253)
 
-(2) Gunawan, R., Fusman, I., Braatz, R.D., 2004. High resolution algorithms for multidimensional population balance equations. AIChE Journal 50. https://doi.org/10.1002/aic.10228
+(2) Gunawan, R., Fusman, I., Braatz, R.D., 2004. High resolution algorithms for multidimensional population balance equations. AIChE Journal 50. [https://doi.org/10.1002/aic.10228](https://doi.org/10.1002/aic.10228)
 
-(3) Ma, D.L., Tafti, D.K., Braatz, R.D., 2002. High-resolution simulation of multidimensional crystal growth. Industrial and Engineering Chemistry Research 41. https://doi.org/10.1021/ie010680u
+(3) Ma, D.L., Tafti, D.K., Braatz, R.D., 2002. High-resolution simulation of multidimensional crystal growth. Industrial and Engineering Chemistry Research 41. [https://doi.org/10.1021/ie010680u](https://doi.org/10.1021/ie010680u)
 
 ___
 
@@ -42,6 +45,7 @@ ___
 ___
 
 # License
+
 The MIT License (MIT)
 
 Copyright (c) 2023 Mohammed Alsubeihi

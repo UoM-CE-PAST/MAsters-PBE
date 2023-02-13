@@ -1,10 +1,12 @@
-function ddt = mom(t, y, ce, k1, k2, m0i, rhoc, kv)
+function ddt = mom(y, ce, k1, k2, rhoc, kv)
 %% Store variables to be solved
+
 m0 = y(1);
 m1 = y(2);
 m2 = y(3);
 m3 = y(4);
 c = y(5);
+
 %% Necessary parameters
 
 S = c/ce;
