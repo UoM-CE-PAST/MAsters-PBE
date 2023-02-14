@@ -6,9 +6,7 @@ L=0:1000;
 f0=1e5*normpdf(L,150,20);
 
 %% Numerical integration (to find initial moments)
-% step size
-h=1;
-% Initialization
+
 m0i=trapz(f0);
 m1i=trapz(L.*f0);
 m2i=trapz(L.^2.*f0);
