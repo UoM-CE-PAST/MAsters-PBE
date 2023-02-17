@@ -9,6 +9,7 @@
 % Last modified:
 % - 2023/02/10, MA: Initial creation
 % - 2023/02/13, MA: Added ability to model dissolution
+% - 2023/02/16, MA: Added temperature dependence
 %
 % Purpose: Implements a high resolution finite volume method (with van Leer
 % limiter) to solve for the time evolution of a particle size distribution
@@ -58,17 +59,18 @@
 % t: 1d array containing the time elapsed since the start of the
 % simulation for each time step
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function [f, c, G, S, m3, t, ce] = HighRes1D(dL, L, tmax, k1, k2, kv, T, ParticleDensity, c0, f0)
+function [f, concentration, G, supersaturation, m3, t, solubility] = highRes1D(dL, L, simulationTime, k1, k2, shapeFactor, temperatureRamp, ParticleDensity, initialConcentration, f0)
 
 %Equilibrium concentration
-ce = 3.37*exp(0.0359*T);
+
 
 %Initial values
 f(:,1)=f0;
 m3(1)=trapz(L.^3.*f(:,1)');
-c(1)=c0;
-S(1)=c0/ce;
-G(1)=k1*(S(1)-1)^k2;
+concentration(1)=initialConcentration;
+solubility = 3.37*exp(0.0359*temperatureRamp(2,1));
+supersaturation(1)=initialConcentration/solubility;
+G(1)=k1*(supersaturation(1)-1)^k2;
 
 %Courant number to specify the maximum stable time step
 CourantNumber = 0.9;
@@ -79,14 +81,14 @@ n=1;
 
 if G(1)>0
 % Growth
-    while t(n)<tmax
+    while t(n)<simulationTime
         
         %Calculate stable time step using available values
         dt=CourantNumber*dL/G(n);
         
         %Check if the max stable time step will exceed time range
-        if tmax-t(n)<=dt
-            t(n+1)=tmax;
+        if simulationTime-t(n)<=dt
+            t(n+1)=simulationTime;
         else
             t(n+1)=t(n)+dt;
         end
@@ -125,16 +127,19 @@ if G(1)>0
         
         f(i,n+1)=f(i,n)-CourantNumber*(f(i,n)-f(i-1,n))-0.5*CourantNumber*(1-CourantNumber)*(fluxLimiterOut*(f(i,n)-f(i,n))-fluxLimiterIn*(f(i,n)-f(i-1,n)));
     
-        % Use liquid phase mass balance to determine supersaturation at next time step 
+        %% Use liquid phase mass balance to determine supersaturation at next time step 
         m3(n+1)=trapz(L.^3.*f(:,n+1)');
-        c(n+1)=c(n)-ParticleDensity*kv*(m3(n+1)-m3(n));
-        S(n+1)=c(n+1)/ce;
+        concentration(n+1)=concentration(n)-ParticleDensity*shapeFactor*(m3(n+1)-m3(n));
+        
+        % Interpolate temperature to find solubility ans superstaturation
+        solubility = 3.37*exp(0.0359*interp1(temperatureRamp(1,:),temperatureRamp(2,:),t(n+1)));
+        supersaturation(n+1)=concentration(n+1)/solubility;
     
-        if S(n+1)<=1 % Necessary to make sure it remains a growth problem
-            S(n+1)=1;
+        if supersaturation(n+1)<=1 % Necessary to make sure it remains a growth problem
+            supersaturation(n+1)=1;
         end
     
-        G(n+1)=k1*(S(n+1)-1)^k2;
+        G(n+1)=k1*(supersaturation(n+1)-1)^k2;
      
         % Increase time counter
         n=n+1;
@@ -144,14 +149,14 @@ elseif G(1)<0
 % Dissolution
 % Courant number is now negative
 CourantNumber = -CourantNumber;
-    while t(n)<tmax
+    while t(n)<simulationTime
         
         %Calculate stable time step using available values
         dt=CourantNumber*dL/G(n);
         
         %Check if the max stable time step will exceed time range
-        if tmax-t(n)<=dt
-            t(n+1)=tmax;
+        if simulationTime-t(n)<=dt
+            t(n+1)=simulationTime;
         else
             t(n+1)=t(n)+dt;
         end
@@ -195,14 +200,17 @@ CourantNumber = -CourantNumber;
     
         %% Use liquid phase mass balance to determine supersaturation at next time step 
         m3(n+1)=trapz(L.^3.*f(:,n+1)');
-        c(n+1)=c(n)-ParticleDensity*kv*(m3(n+1)-m3(n));
-        S(n+1)=c(n+1)/ce;
+        concentration(n+1)=concentration(n)-ParticleDensity*shapeFactor*(m3(n+1)-m3(n));
+
+         % Interpolate temperature to find solubility ans superstaturation
+        solubility = 3.37*exp(0.0359*interp1(temperatureRamp(1,:),temperatureRamp(2,:),t(n+1)));
+        supersaturation(n+1)=concentration(n+1)/solubility;
     
-        if S(n+1)>=1 % Necessary to make sure it remains a dissolution problem
-            S(n+1)=1;
+        if supersaturation(n+1)>=1 % Necessary to make sure it remains a dissolution problem
+            supersaturation(n+1)=1;
         end
     
-        G(n+1)=k1*(S(n+1)-1)^k2;
+        G(n+1)=k1*(supersaturation(n+1)-1)^k2;
      
         % Increase time counter
         n=n+1;

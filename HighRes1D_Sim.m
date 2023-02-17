@@ -9,6 +9,7 @@
 % Last modified:
 % - 2023/02/10, MA: Initial creation
 % - 2023/02/13, MA: Added ability to model dissolution
+% - 2023/02/16, MA: Added temperature dependency
 %
 % Purpose: This file is used to track/visualise changes in the particle
 % size distribution over a given time range as simulated by the function:
@@ -60,15 +61,20 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 clear; clc
+close all
 
 %% Essential parameters
-temperature=25; % C
-c0=50; % g/kg
+
+initialConcentration=30; % g/kg
 k1 = 10; % um/h
 k2 = 1;
 shapeFactor = 1; % assuming cuboidal particles
 particleDensity = 1.46e-12; % g/um3
-tmax=100; %h range of t required
+simulationTime=100; %h range of t required
+
+% Temperature ramp definition - top row represents time while bottom row
+% represents corresponding temperature
+temperatureRamp=[0:simulationTime; linspace(25,25,10) linspace(15,15,91)]; % C
 
 %Length range and length step
 dL=1; %um
@@ -85,10 +91,13 @@ f0 = 1e5*normpdf(L,300,20);
 
 %% Base Case
 
-[f, c, G, S, m3, t, ce] = HighRes1D(dL, L, tmax, k1, k2, shapeFactor, temperature, particleDensity, c0, f0);
+[f, concentration, G, supersaturation, m3, t, solubility] = highRes1D(dL, L, simulationTime, k1, k2, shapeFactor, temperatureRamp, particleDensity, initialConcentration, f0);
+
+figure(1)
+plot(t,concentration)
 
 %Static plot
-
+figure(2)
 plot(L,f(:,1), 'linewidth',1.2), xlabel('Length [μm]'), ylabel('f [μm^{-1} kg^{-1}]'), hold on, plot(L,f(:,end), 'linewidth',1.2), xlabel('Length [μm]'), ylabel('f [μm^{-1} kg^{-1}]')
 legend('Inital PSD','Final PSD')
 set(gca,'FontSize',18)
