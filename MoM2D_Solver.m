@@ -8,6 +8,7 @@
 % 
 % Last modified:
 % - 2023/02/13, MA: Initial creation
+% - 2023/02/14, MA: minor fixes
 %
 % Purpose: Defines a function handle containing the ode system
 % corresponding to the two-dimensional method of moments.
@@ -25,13 +26,14 @@ clear; clc
 close all
 
 %% Define initial PSD
-
-L1 = 1:1000;
-L2 = 1:1000;
+dL1 = 1;
+L1 = 1:dL1:1000;
+dL2 = 1;
+L2 = 1:dL2:1000;
 [l1,l2] = meshgrid(L1,L2);
 
 L = [l1(:) l2(:)];
-mean = [200 200];
+mean = [200 400];
 standardDeviation = [20 0; 0 20];
 
 f0 = 1e5*mvnpdf(L,mean, standardDeviation);
@@ -39,16 +41,16 @@ f0 = reshape(f0,length(L2),length(L1));
 
 surf(L1,L2,f0)
 clim([min(f0(:))-0.5*range(f0(:)),max(f0(:))])
-axis([180 220 180 220 0 800])
+axis([180 220 380 420 0 800])
 
 %% Calculate initial cross-moments (using integration)
 
 initialm00 = trapz(L2,trapz(L1,f0));
-initialm10 = trapz(L2,trapz(L1,L2.*f0));
+initialm10 = trapz(L2,trapz(L1,L2'.*f0));
 initialm01 = trapz(L2,trapz(L1,L1.*f0));
 initialm20 = trapz(L2,trapz(L1.^2.*f0));
-initialm11 = trapz(L2,trapz(L1,L1.*L2.*f0));
-initialm21 = trapz(L2, trapz(L1,L1.^2.*L2.*f0));
+initialm11 = trapz(L2,trapz(L1,L1.*L2'.*f0));
+initialm21 = trapz(L2, trapz(L1,L1.^2.*L2'.*f0));
 
 %% Constant values
 
