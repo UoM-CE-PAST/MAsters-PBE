@@ -10,6 +10,7 @@
 % - 2023/02/10, MA: Initial creation
 % - 2023/02/13, MA: Added ability to model dissolution
 % - 2023/02/16, MA: Added temperature dependence
+% - 2023/02/16, MA: Replaced spatial for loop with vector operations
 %
 % Purpose: Implements a high resolution finite volume method (with van Leer
 % limiter) to solve for the time evolution of a particle size distribution
@@ -72,6 +73,10 @@ solubility = 3.37*exp(0.0359*temperatureRamp(2,1));
 supersaturation(1)=initialConcentration/solubility;
 G(1)=k1*(supersaturation(1)-1)^k2;
 
+%initialise smoothness and flux limiter functions
+smoothness = zeros(length(L),1);
+fluxLimiter = zeros(length(L),1);
+
 %Courant number to specify the maximum stable time step
 CourantNumber = 0.9;
 
@@ -95,37 +100,26 @@ if G(1)>0
     
         %Calculate the PSD at the new time using high resolution method
         %% 1-Inflow boundary
-        i = 1;
     
         %Determine smoothness and calculate appropriate flux limiter for cell
         %inlet and outlet fluxes
         
-        fluxLimiterIn = 1;
-        fluxLimiterOut = 1;
+        fluxLimiter(1) = 1;
+        fluxLimiter(2) = 1;
     
-        f(i,n+1)=f(i,n)-CourantNumber*f(i,n)-0.5*CourantNumber*(1-CourantNumber)*(fluxLimiterOut*(f(i+1,n)-f(i,n))-fluxLimiterIn*(f(i,n)));
+        f(1,n+1)=f(1,n)-CourantNumber*f(1,n)-0.5*CourantNumber*(1-CourantNumber)*(fluxLimiter(2)*(f(2,n)-f(1,n))-fluxLimiter(1)*(f(1,n)));
     
         %% 2-Interior volume
-        for i=2:length(L)-1
-    
-            fluxLimiterIn = fluxLimiterOut;
-            if f(i+1,n)-f(i,n)==0
-                fluxLimiterOut = 1;
-            else
-                smoothnessOut = (f(i,n)-f(i-1,n))/(f(i+1,n)-f(i,n));
-                fluxLimiterOut = (smoothnessOut+abs(smoothnessOut))/(1+abs(smoothnessOut));
-            end
-            
-            f(i,n+1)=f(i,n)-CourantNumber*(f(i,n)-f(i-1,n))-0.5*CourantNumber*(1-CourantNumber)*(fluxLimiterOut*(f(i+1,n)-f(i,n))-fluxLimiterIn*(f(i,n)-f(i-1,n)));
-        end
-    
+
+        smoothness(3:end) = (f(2:end-1,n)-f(1:end-2,n)+eps)./(f(3:end,n)-f(2:end-1,n)+eps);
+        fluxLimiter(3:end) = (smoothness(3:end)+abs(smoothness(3:end)))./(1+abs(smoothness(3:end)));
+        f(2:end-1,n+1) = f(2:end-1,n) - CourantNumber*(f(2:end-1,n)-f(1:end-2,n)) - 0.5*CourantNumber*(1-CourantNumber)*(fluxLimiter(3:end).*(f(3:end,n)-f(2:end-1,n)) - fluxLimiter(2:end-1).*(f(2:end-1,n)-f(1:end-2,n)));
+
         %% 3-Outflow boundary
-        i = length(L);
-    
-        fluxLimiterIn = fluxLimiterOut;
+
         % An outlet flux limiter is not required for the outflow boundary
         
-        f(i,n+1)=f(i,n)-CourantNumber*(f(i,n)-f(i-1,n))-0.5*CourantNumber*(1-CourantNumber)*(fluxLimiterOut*(f(i,n)-f(i,n))-fluxLimiterIn*(f(i,n)-f(i-1,n)));
+        f(end,n+1)=f(end,n)-CourantNumber*(f(end,n)-f(end-1,n))-0.5*CourantNumber*(1-CourantNumber)*(-fluxLimiter(end)*(f(end,n)-f(end-1,n)));
     
         %% Use liquid phase mass balance to determine supersaturation at next time step 
         m3(n+1)=trapz(L.^3.*f(:,n+1)');
@@ -167,36 +161,37 @@ CourantNumber = -CourantNumber;
         %% 1-Inflow boundary
         %For dissolution, the inflow boundary is at the right of the
         %spatial domain. The ghost cells are assumed to be 0.
-        i = length(L);
         
-        fluxLimiterIn = 1;
-        fluxLimiterOut = 1;
+        fluxLimiter(end) = 1;
+        fluxLimiter(end-1) = 1;
     
-        f(i,n+1)=f(i,n)+CourantNumber*f(i,n)+0.5*CourantNumber*(1+CourantNumber)*(fluxLimiterIn*(-f(i,n))-fluxLimiterOut*(f(i,n)-f(i-1,n)));
+        f(end,n+1)=f(end,n)+CourantNumber*f(end,n)+0.5*CourantNumber*(1+CourantNumber)*(fluxLimiter(end)*(-f(end,n))-fluxLimiter(end-1)*(f(end,n)-f(end-1,n)));
     
         %% 2-Interior volume
-        for i=length(L)-1:-1:2
+%         for i=length(L)-1:-1:2
+%     
+%             fluxLimiterIn = fluxLimiterOut;
+%             if f(i,n)-f(i-1,n)==0
+%                 fluxLimiterOut = 1;
+%             else
+%                 smoothnessOut = (f(i+1,n)-f(i,n))/(f(i,n)-f(i-1,n));
+%                 fluxLimiterOut = (smoothnessOut+abs(smoothnessOut))/(1+abs(smoothnessOut));
+%             end
+%             
+%             f(i,n+1)=f(i,n)-CourantNumber*(f(i+1,n)-f(i,n))+0.5*CourantNumber*(1+CourantNumber)*(fluxLimiterIn*(f(i+1,n)-f(i,n))-fluxLimiterOut*(f(i,n)-f(i-1,n)));
+%         end
     
-            fluxLimiterIn = fluxLimiterOut;
-            if f(i,n)-f(i-1,n)==0
-                fluxLimiterOut = 1;
-            else
-                smoothnessOut = (f(i+1,n)-f(i,n))/(f(i,n)-f(i-1,n));
-                fluxLimiterOut = (smoothnessOut+abs(smoothnessOut))/(1+abs(smoothnessOut));
-            end
-            
-            f(i,n+1)=f(i,n)-CourantNumber*(f(i+1,n)-f(i,n))+0.5*CourantNumber*(1+CourantNumber)*(fluxLimiterIn*(f(i+1,n)-f(i,n))-fluxLimiterOut*(f(i,n)-f(i-1,n)));
-        end
-    
+        smoothness(end-2:-1:1) = (f(end:-1:3,n)-f(end-1:-1:2,n)+eps)./(f(end-1:-1:2,n)-f(end-2:-1:1,n)+eps);
+        fluxLimiter(end-2:-1:1) = (smoothness(end-2:-1:1)+abs(smoothness(end-2:-1:1)))./(1+abs(smoothness(end-2:-1:1)));
+        f(end-1:-1:2,n+1) = f(end-1:-1:2,n) - CourantNumber*(f(end:-1:3,n)-f(end-1:-1:2,n)) + 0.5*CourantNumber*(1+CourantNumber)*(fluxLimiter(end-2:-1:1).*(f(end:-1:3,n)-f(end-1:-1:2,n))-fluxLimiter(end-1:-1:2).*(f(end-1:-1:2,n)-f(end-2:-1:1,n)));
+
         %% 3-Outflow boundary
         % For dissolution, the outflow boundary is at the left of the
         % spatial domain. The ghost cell is obtained using zero-order extrapolation
-        i = 1;
-    
-        fluxLimiterIn = fluxLimiterOut;
+
         % An outlet flux limiter is not required for the outflow boundary
         
-        f(i,n+1)=f(i,n)-CourantNumber*(f(i+1,n)-f(i,n))+0.5*CourantNumber*(1+CourantNumber)*(fluxLimiterIn*(f(i+1,n)-f(i,n))-fluxLimiterOut*(f(i,n)-f(i,n)));
+        f(1,n+1)=f(1,n)-CourantNumber*(f(2,n)-f(1,n))+0.5*CourantNumber*(1+CourantNumber)*(fluxLimiter(1)*(f(1+1,n)-f(1,n)));
     
         %% Use liquid phase mass balance to determine supersaturation at next time step 
         m3(n+1)=trapz(L.^3.*f(:,n+1)');
