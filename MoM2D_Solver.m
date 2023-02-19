@@ -9,6 +9,7 @@
 % Last modified:
 % - 2023/02/13, MA: Initial creation
 % - 2023/02/14, MA: minor fixes
+% - 2023/02/16. MA: fixed shape factor
 %
 % Purpose: Defines a function handle containing the ode system
 % corresponding to the two-dimensional method of moments.
@@ -61,7 +62,7 @@ k11 = 5;
 k12 = 1;
 k21 = 2.5;
 k22 = 1;
-shapeFactor = pi();
+shapeFactor = pi/4;
 particleDensity = 1.46e-12;
 
 %% ODE system integration
