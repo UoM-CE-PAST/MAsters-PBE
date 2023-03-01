@@ -11,15 +11,25 @@
 % - 2023/02/13, MA: Added ability to model dissolution
 % - 2023/02/16, MA: Added temperature dependence
 % - 2023/02/16, MA: Replaced spatial for loop with vector operations
+% - 2023/02/23, MA: added temperature output for solubility plots
+% - 2023/02/23, MA: added ability to start from equilibrium (fix)
+% - 2023/02/23, MA: minor fix (removed solubility output)
+% - 2023/02/24, MA: added constant supersaturation mode
 %
 % Purpose: Implements a high resolution finite volume method (with van Leer
 % limiter) to solve for the time evolution of a particle size distribution
 % over a given time range.
 %
 % References:
-% (1) LeVeque, R.J., 2002. Finite Volume Methods for Hyperbolic Problems, Cambridge Texts in Applied Mathematics. Cambridge University Press, Cambridge. https://doi.org/10.1017/CBO9780511791253
-% (2) Gunawan, R., Fusman, I., Braatz, R.D., 2004. High resolution algorithms for multidimensional population balance equations. AIChE Journal 50. https://doi.org/10.1002/aic.10228
-% (3) Ma, D.L., Tafti, D.K., Braatz, R.D., 2002. High-resolution simulation of multidimensional crystal growth. Industrial and Engineering Chemistry Research 41. https://doi.org/10.1021/ie010680u
+% (1) LeVeque, R.J., 2002. Finite Volume Methods for Hyperbolic Problems,
+% Cambridge Texts in Applied Mathematics. Cambridge University Press,
+% Cambridge. https://doi.org/10.1017/CBO9780511791253
+% (2) Gunawan, R., Fusman, I., Braatz, R.D., 2004. High resolution
+% algorithms for multidimensional population balance equations. AIChE
+% Journal 50. https://doi.org/10.1002/aic.10228
+% (3) Ma, D.L., Tafti, D.K., Braatz, R.D., 2002. High-resolution simulation
+% of multidimensional crystal growth. Industrial and Engineering Chemistry
+% Research 41. https://doi.org/10.1021/ie010680u
 %
 % Input Arguments:
 % dL: Scalar representing the length of the length step
@@ -40,7 +50,10 @@
 %
 % c0: Scalar representing the initial concentration
 %
-% f0: Scalar representing the initial particle distribution
+% initialPSD: Scalar representing the initial particle distribution
+%
+% T0: Scalar containing equilibrium temperature for initial concentration
+%
 %
 % Output arguments:
 % f: 2d array containing the particle size distribution at every time and
@@ -59,17 +72,27 @@
 %
 % t: 1d array containing the time elapsed since the start of the
 % simulation for each time step
+% 
+% temperature: 1d array containing the temperature at each time step
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function [f, concentration, G, supersaturation, m3, t, solubility] = highRes1D(dL, L, simulationTime, k1, k2, shapeFactor, temperatureRamp, ParticleDensity, initialConcentration, f0)
+function [f, concentration, G, supersaturation, m3, t,...
+    temperature] = highRes1D(dL, L, simulationTime, k1, k2, shapeFactor,...
+    temperatureRamp, ParticleDensity, initialConcentration, initialPSD, operationMode)
 
 %Equilibrium concentration
 
 
 %Initial values
-f(:,1)=f0;
+f(:,1)=initialPSD;
 m3(1)=trapz(L.^3.*f(:,1)');
 concentration(1)=initialConcentration;
-solubility = 3.37*exp(0.0359*temperatureRamp(2,1));
+T0 = (1/0.0359)*log(initialConcentration/3.37);
+if operationMode == 1
+temperature(1) = temperatureRamp(2,1);
+elseif operationMode == 2
+    temperature(1) = T0;
+end
+solubility = 3.37*exp(0.0359*temperature(1));
 supersaturation(1)=initialConcentration/solubility;
 G(1)=k1*(supersaturation(1)-1)^k2;
 
@@ -80,11 +103,35 @@ fluxLimiter = zeros(length(L),1);
 %Courant number to specify the maximum stable time step
 CourantNumber = 0.9;
 
-%while loop to update and store cell averages over time
+% set reference time and time index
 t=0;
 n=1;
 
-if G(1)>0
+% if system starts at equilibrium (i.e. G=0) then ensure system doesn't
+% change until driving force is non-zero
+while temperature(n) == T0 || G(n) == 0
+    if operationMode == 1
+        t(n+1)=temperatureRamp(1,n+1);
+    elseif operationMode == 2
+        t(n+1) = 0;
+    end
+    f(:,n+1)=initialPSD;
+    m3(n+1)=trapz(L.^3.*f(:,n+1)');
+    concentration(n+1)=initialConcentration;
+    if operationMode == 1
+        temperature(n+1) = temperatureRamp(2,n+1);
+    elseif operationMode == 2
+        temperature(n+1) = interp1(temperatureRamp(1,:),temperatureRamp(2,:),concentration(n+1));
+    end
+    solubility = 3.37*exp(0.0359*temperature(n+1));
+    supersaturation(n+1)=initialConcentration/solubility;
+    G(n+1)=k1*(supersaturation(n+1)-1)^k2;
+    
+    n=n+1;
+end
+
+%while loop to update and store cell averages over time
+if G(n)>0
 % Growth
     while t(n)<simulationTime
         
@@ -98,7 +145,7 @@ if G(1)>0
             t(n+1)=t(n)+dt;
         end
     
-        %Calculate the PSD at the new time using high resolution method
+        % Update the PSD at the new time using high resolution method
         %% 1-Inflow boundary
     
         %Determine smoothness and calculate appropriate flux limiter for cell
@@ -125,8 +172,16 @@ if G(1)>0
         m3(n+1)=trapz(L.^3.*f(:,n+1)');
         concentration(n+1)=concentration(n)-ParticleDensity*shapeFactor*(m3(n+1)-m3(n));
         
-        % Interpolate temperature to find solubility ans superstaturation
-        solubility = 3.37*exp(0.0359*interp1(temperatureRamp(1,:),temperatureRamp(2,:),t(n+1)));
+        % Interpolate temperature to find solubility and superstaturation
+         if operationMode == 1
+             % if temperature is time-dependent, interpolate with time
+            temperature(n+1) = interp1(temperatureRamp(1,:),temperatureRamp(2,:),t(n+1));
+         elseif operationMode == 2
+             % if temperature is concentration-dependent, interpolate with
+             % concentration
+            temperature(n+1) = interp1(temperatureRamp(1,:),temperatureRamp(2,:),concentration(n+1));
+         end
+        solubility = 3.37*exp(0.0359*temperature(n+1));
         supersaturation(n+1)=concentration(n+1)/solubility;
     
         if supersaturation(n+1)<=1 % Necessary to make sure it remains a growth problem
@@ -139,7 +194,7 @@ if G(1)>0
         n=n+1;
     end
   
-elseif G(1)<0
+elseif G(n)<0
 % Dissolution
 % Courant number is now negative
 CourantNumber = -CourantNumber;
@@ -168,19 +223,6 @@ CourantNumber = -CourantNumber;
         f(end,n+1)=f(end,n)+CourantNumber*f(end,n)+0.5*CourantNumber*(1+CourantNumber)*(fluxLimiter(end)*(-f(end,n))-fluxLimiter(end-1)*(f(end,n)-f(end-1,n)));
     
         %% 2-Interior volume
-%         for i=length(L)-1:-1:2
-%     
-%             fluxLimiterIn = fluxLimiterOut;
-%             if f(i,n)-f(i-1,n)==0
-%                 fluxLimiterOut = 1;
-%             else
-%                 smoothnessOut = (f(i+1,n)-f(i,n))/(f(i,n)-f(i-1,n));
-%                 fluxLimiterOut = (smoothnessOut+abs(smoothnessOut))/(1+abs(smoothnessOut));
-%             end
-%             
-%             f(i,n+1)=f(i,n)-CourantNumber*(f(i+1,n)-f(i,n))+0.5*CourantNumber*(1+CourantNumber)*(fluxLimiterIn*(f(i+1,n)-f(i,n))-fluxLimiterOut*(f(i,n)-f(i-1,n)));
-%         end
-    
         smoothness(end-2:-1:1) = (f(end:-1:3,n)-f(end-1:-1:2,n)+eps)./(f(end-1:-1:2,n)-f(end-2:-1:1,n)+eps);
         fluxLimiter(end-2:-1:1) = (smoothness(end-2:-1:1)+abs(smoothness(end-2:-1:1)))./(1+abs(smoothness(end-2:-1:1)));
         f(end-1:-1:2,n+1) = f(end-1:-1:2,n) - CourantNumber*(f(end:-1:3,n)-f(end-1:-1:2,n)) + 0.5*CourantNumber*(1+CourantNumber)*(fluxLimiter(end-2:-1:1).*(f(end:-1:3,n)-f(end-1:-1:2,n))-fluxLimiter(end-1:-1:2).*(f(end-1:-1:2,n)-f(end-2:-1:1,n)));
@@ -197,8 +239,13 @@ CourantNumber = -CourantNumber;
         m3(n+1)=trapz(L.^3.*f(:,n+1)');
         concentration(n+1)=concentration(n)-ParticleDensity*shapeFactor*(m3(n+1)-m3(n));
 
-         % Interpolate temperature to find solubility ans superstaturation
-        solubility = 3.37*exp(0.0359*interp1(temperatureRamp(1,:),temperatureRamp(2,:),t(n+1)));
+         % Interpolate temperature to find solubility and superstaturation
+         if operationMode == 1
+            temperature(n+1) = interp1(temperatureRamp(1,:),temperatureRamp(2,:),t(n+1));
+         elseif operationMode == 2
+            temperature(n+1) = interp1(temperatureRamp(1,:),temperatureRamp(2,:),concentration(n+1));
+         end
+        solubility = 3.37*exp(0.0359*temperature(n+1));
         supersaturation(n+1)=concentration(n+1)/solubility;
     
         if supersaturation(n+1)>=1 % Necessary to make sure it remains a dissolution problem
@@ -211,4 +258,5 @@ CourantNumber = -CourantNumber;
         n=n+1;
     end
 end
+
 end
