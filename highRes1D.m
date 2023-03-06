@@ -15,6 +15,8 @@
 % - 2023/02/23, MA: added ability to start from equilibrium (fix)
 % - 2023/02/23, MA: minor fix (removed solubility output)
 % - 2023/02/24, MA: added constant supersaturation mode
+% - 2023/03/03, MA: improved simulation accuracy (slowed simulation down at
+% later time steps when CFL condition is too forgiving).
 %
 % Purpose: Implements a high resolution finite volume method (with van Leer
 % limiter) to solve for the time evolution of a particle size distribution
@@ -101,11 +103,14 @@ smoothness = zeros(length(L),1);
 fluxLimiter = zeros(length(L),1);
 
 %Courant number to specify the maximum stable time step
-CourantNumber = 0.9;
+CourantNumber = 1;
 
 % set reference time and time index
 t=0;
 n=1;
+
+% initialise relative error
+relativeError = 0;
 
 % if system starts at equilibrium (i.e. G=0) then ensure system doesn't
 % change until driving force is non-zero
@@ -138,11 +143,25 @@ if G(n)>0
         %Calculate stable time step using available values
         dt=CourantNumber*dL/G(n);
         
-        %Check if the max stable time step will exceed time range
-        if simulationTime-t(n)<=dt
-            t(n+1)=simulationTime;
+        %if algorithm is too fast, redo the time step with half the
+        %original time step
+        if relativeError <= 1
+            %Check if the max stable time step will exceed time range
+            if simulationTime-t(n)<=dt
+                t(n+1)=simulationTime;
+                dt = simulationTime-t(n);
+            else
+                t(n+1)=t(n)+dt;
+            end
         else
-            t(n+1)=t(n)+dt;
+            dt = 0.1*dt;
+            %Check if the half max stable time step will exceed time range
+            if simulationTime-t(n)<=dt
+                t(n+1)=simulationTime;
+                dt = simulationTime-t(n);
+            else
+                t(n+1)=t(n)+dt;
+            end
         end
     
         % Update the PSD at the new time using high resolution method
@@ -154,19 +173,19 @@ if G(n)>0
         fluxLimiter(1) = 1;
         fluxLimiter(2) = 1;
     
-        f(1,n+1)=f(1,n)-CourantNumber*f(1,n)-0.5*CourantNumber*(1-CourantNumber)*(fluxLimiter(2)*(f(2,n)-f(1,n))-fluxLimiter(1)*(f(1,n)));
+        f(1,n+1)=f(1,n)-dt/dL*G(n)*f(1,n)-0.5*dt/dL*G(n)*(1-dt/dL*G(n))*(fluxLimiter(2)*(f(2,n)-f(1,n))-fluxLimiter(1)*(f(1,n)));
     
         %% 2-Interior volume
 
         smoothness(3:end) = (f(2:end-1,n)-f(1:end-2,n)+eps)./(f(3:end,n)-f(2:end-1,n)+eps);
         fluxLimiter(3:end) = (smoothness(3:end)+abs(smoothness(3:end)))./(1+abs(smoothness(3:end)));
-        f(2:end-1,n+1) = f(2:end-1,n) - CourantNumber*(f(2:end-1,n)-f(1:end-2,n)) - 0.5*CourantNumber*(1-CourantNumber)*(fluxLimiter(3:end).*(f(3:end,n)-f(2:end-1,n)) - fluxLimiter(2:end-1).*(f(2:end-1,n)-f(1:end-2,n)));
+        f(2:end-1,n+1) = f(2:end-1,n) - dt/dL*(G(n)*f(2:end-1,n)-G(n)*f(1:end-2,n)) - 0.5*dt/dL*G(n)*(1-dt/dL*G(n))*(fluxLimiter(3:end).*(f(3:end,n)-f(2:end-1,n)) - fluxLimiter(2:end-1).*(f(2:end-1,n)-f(1:end-2,n)));
 
         %% 3-Outflow boundary
 
         % An outlet flux limiter is not required for the outflow boundary
         
-        f(end,n+1)=f(end,n)-CourantNumber*(f(end,n)-f(end-1,n))-0.5*CourantNumber*(1-CourantNumber)*(-fluxLimiter(end)*(f(end,n)-f(end-1,n)));
+        f(end,n+1)=f(end,n)-dt/dL*(G(n)*f(end,n)-G(n)*f(end-1,n))-0.5*dt/dL*G(n)*(1-dt/dL*G(n))*(-fluxLimiter(end)*(f(end,n)-f(end-1,n)));
     
         %% Use liquid phase mass balance to determine supersaturation at next time step 
         m3(n+1)=trapz(L.^3.*f(:,n+1)');
@@ -187,11 +206,18 @@ if G(n)>0
         if supersaturation(n+1)<=1 % Necessary to make sure it remains a growth problem
             supersaturation(n+1)=1;
         end
-    
-        G(n+1)=k1*(supersaturation(n+1)-1)^k2;
-     
-        % Increase time counter
-        n=n+1;
+        
+        %use relative error to determine if algorithm is proceeding too
+        %quickly:
+        relativeError = 100*(abs(supersaturation(n+1)-supersaturation(n))+eps)/(supersaturation(n+1)+eps);
+        if relativeError <= 1
+            G(n+1)=k1*(supersaturation(n+1)-1)^k2;
+         
+            % Increase time counter
+            n=n+1;
+        else
+            %do nothing
+        end
     end
   
 elseif G(n)<0
@@ -203,11 +229,25 @@ CourantNumber = -CourantNumber;
         %Calculate stable time step using available values
         dt=CourantNumber*dL/G(n);
         
-        %Check if the max stable time step will exceed time range
-        if simulationTime-t(n)<=dt
-            t(n+1)=simulationTime;
+        %if algorithm is too fast, redo the time step with half the
+        %original time step
+        if relativeError <= 1
+            %Check if the max stable time step will exceed time range
+            if simulationTime-t(n)<=dt
+                t(n+1)=simulationTime;
+                dt = simulationTime-t(n);
+            else
+                t(n+1)=t(n)+dt;
+            end
         else
-            t(n+1)=t(n)+dt;
+            dt = 0.1*dt;
+            %Check if the half max stable time step will exceed time range
+            if simulationTime-t(n)<=dt
+                t(n+1)=simulationTime;
+                dt = simulationTime-t(n);
+            else
+                t(n+1)=t(n)+dt;
+            end
         end
     
         %Calculate the PSD at the new time using high resolution method:
@@ -220,12 +260,12 @@ CourantNumber = -CourantNumber;
         fluxLimiter(end) = 1;
         fluxLimiter(end-1) = 1;
     
-        f(end,n+1)=f(end,n)+CourantNumber*f(end,n)+0.5*CourantNumber*(1+CourantNumber)*(fluxLimiter(end)*(-f(end,n))-fluxLimiter(end-1)*(f(end,n)-f(end-1,n)));
+        f(end,n+1)=f(end,n)+dt/dL*G(n)*f(end,n)+0.5*dt/dL*G(n)*(1+dt/dL*G(n))*(fluxLimiter(end)*(-f(end,n))-fluxLimiter(end-1)*(f(end,n)-f(end-1,n)));
     
         %% 2-Interior volume
         smoothness(end-2:-1:1) = (f(end:-1:3,n)-f(end-1:-1:2,n)+eps)./(f(end-1:-1:2,n)-f(end-2:-1:1,n)+eps);
         fluxLimiter(end-2:-1:1) = (smoothness(end-2:-1:1)+abs(smoothness(end-2:-1:1)))./(1+abs(smoothness(end-2:-1:1)));
-        f(end-1:-1:2,n+1) = f(end-1:-1:2,n) - CourantNumber*(f(end:-1:3,n)-f(end-1:-1:2,n)) + 0.5*CourantNumber*(1+CourantNumber)*(fluxLimiter(end-2:-1:1).*(f(end:-1:3,n)-f(end-1:-1:2,n))-fluxLimiter(end-1:-1:2).*(f(end-1:-1:2,n)-f(end-2:-1:1,n)));
+        f(end-1:-1:2,n+1) = f(end-1:-1:2,n) - dt/dL*(G(n)*f(end:-1:3,n)-G(n)*f(end-1:-1:2,n)) + 0.5*dt/dL*G(n)*(1+dt/dL*G(n))*(fluxLimiter(end-2:-1:1).*(f(end:-1:3,n)-f(end-1:-1:2,n))-fluxLimiter(end-1:-1:2).*(f(end-1:-1:2,n)-f(end-2:-1:1,n)));
 
         %% 3-Outflow boundary
         % For dissolution, the outflow boundary is at the left of the
@@ -233,7 +273,7 @@ CourantNumber = -CourantNumber;
 
         % An outlet flux limiter is not required for the outflow boundary
         
-        f(1,n+1)=f(1,n)-CourantNumber*(f(2,n)-f(1,n))+0.5*CourantNumber*(1+CourantNumber)*(fluxLimiter(1)*(f(1+1,n)-f(1,n)));
+        f(1,n+1)=f(1,n)-dt/dL*(G(n)*f(2,n)-G(n)*f(1,n))+0.5*dt/dL*G(n)*(1+dt/dL*G(n))*(fluxLimiter(1)*(f(1+1,n)-f(1,n)));
     
         %% Use liquid phase mass balance to determine supersaturation at next time step 
         m3(n+1)=trapz(L.^3.*f(:,n+1)');
@@ -252,11 +292,17 @@ CourantNumber = -CourantNumber;
             supersaturation(n+1)=1;
         end
     
-        G(n+1)=k1*(supersaturation(n+1)-1)^k2;
-     
-        % Increase time counter
-        n=n+1;
-    end
+        %use relative error to determine if algorithm is proceeding too
+        %quickly:
+        relativeError = 100*(abs(supersaturation(n+1)-supersaturation(n))+eps)/(supersaturation(n+1)+eps);
+        if relativeError <= 1
+            G(n+1)=k1*(supersaturation(n+1)-1)^k2;
+         
+            % Increase time counter
+            n=n+1;
+        else
+            %do nothing
+        end
 end
 
 end
