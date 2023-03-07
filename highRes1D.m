@@ -81,9 +81,6 @@ function [f, concentration, G, supersaturation, m3, t,...
     temperature] = highRes1D(dL, L, simulationTime, k1, k2, shapeFactor,...
     temperatureRamp, ParticleDensity, initialConcentration, initialPSD, operationMode)
 
-%Equilibrium concentration
-
-
 %Initial values
 f(:,1)=initialPSD;
 m3(1)=trapz(L.^3.*f(:,1)');
