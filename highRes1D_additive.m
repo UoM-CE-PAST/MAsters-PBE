@@ -8,6 +8,7 @@
 % 
 % Last modified:
 % - 2023/03/06, MA: Initial creation
+% - 2023/03/07, MA: Fixed growth rate
 %
 % Purpose: Implements a high resolution finite volume method (with van Leer
 % limiter) to solve for the time evolution of a particle size distribution
@@ -88,7 +89,7 @@ function [f, concentration, G, supersaturation, m3, t,...
 f(:,1)=initialPSD;
 m3(1)=trapz(L.^3.*f(:,1)');
 concentration(1)=initialConcentration;
-T0 = (1/0.0359)*log(initialConcentration/3.37);
+T0 = 7.859*fzero(@(theta) 1000*(p4*theta^4 + p3*theta^3 + p2*theta^2 + p1*theta + p0) - initialConcentration,1) + 18.85;
 if operationMode == 2
     temperature(1) = T0;
 else
@@ -97,7 +98,7 @@ end
 theta = (temperature(1)-18.85)/7.859;
 solubility = 1000*(p4*theta^4 + p3*theta^3 + p2*theta^2 + p1*theta + p0);
 supersaturation(1)=initialConcentration/solubility;
-G(1)=1e6*3600*k1*exp(-k2/(temperature(1)+273.15))*(supersaturation(1)-1)^(2/3)*log(supersaturation(1))^(1/6)*exp(-k3/(((temperature(1)+273.15)^2)*log(supersaturation(1))));
+G(1)=1e6*k1*exp(-k2/(temperature(1)+273.15))*(supersaturation(1)-1)^(2/3)*log(supersaturation(1))^(1/6)*exp(-k3/(((temperature(1)+273.15)^2)*log(supersaturation(1))));
 
 %initialise smoothness and flux limiter functions
 smoothness = zeros(length(L),1);
@@ -132,7 +133,7 @@ while temperature(n) == T0 || G(n) == 0
     theta = (temperature(n+1)-18.85)/7.859;
     solubility = 1000*(p4*theta^4 + p3*theta^3 + p2*theta^2 + p1*theta + p0);
     supersaturation(n+1)=concentration(n+1)/solubility;
-    G(n+1)=1e6*3600*k1*exp(-k2/(temperature(n+1)+273.15))*(supersaturation(n+1)-1)^(2/3)*log(supersaturation(n+1))^(1/6)*exp(-k3/(((temperature(n+1)+273.15)^2)*log(supersaturation(n+1))));
+    G(n+1)=1e6*k1*exp(-k2/(temperature(n+1)+273.15))*(supersaturation(n+1)-1)^(2/3)*log(supersaturation(n+1))^(1/6)*exp(-k3/(((temperature(n+1)+273.15)^2)*log(supersaturation(n+1))));
     
     n=n+1;
 end
@@ -205,7 +206,7 @@ if G(n)>0
         theta = (temperature(n+1)-18.85)/7.859;
         solubility = 1000*(p4*theta^4 + p3*theta^3 + p2*theta^2 + p1*theta + p0);
         supersaturation(n+1)=concentration(n+1)/solubility;
-        G(n+1)=1e6*3600*k1*exp(-k2/(temperature(n+1)+273.15))*(supersaturation(n+1)-1)^(2/3)*log(supersaturation(n+1))^(1/6)*exp(-k3/(((temperature(n+1)+273.15)^2)*log(supersaturation(n+1))));
+        G(n+1)=1e6*k1*exp(-k2/(temperature(n+1)+273.15))*(supersaturation(n+1)-1)^(2/3)*log(supersaturation(n+1))^(1/6)*exp(-k3/(((temperature(n+1)+273.15)^2)*log(supersaturation(n+1))));
     
         if supersaturation(n+1)<=1 % Necessary to make sure it remains a growth problem
             supersaturation(n+1)=1;
@@ -215,7 +216,7 @@ if G(n)>0
         %quickly:
         relativeError = 100*(abs(supersaturation(n+1)-supersaturation(n))+eps)/(supersaturation(n+1)+eps);
         if relativeError <= 1
-            G(n+1)=k1*(supersaturation(n+1)-1)^k2;
+            G(n+1)=1e6*k1*exp(-k2/(temperature(n+1)+273.15))*(supersaturation(n+1)-1)^(2/3)*log(supersaturation(n+1))^(1/6)*exp(-k3/(((temperature(n+1)+273.15)^2)*log(supersaturation(n+1))));
          
             % Increase time counter
             n=n+1;
@@ -235,7 +236,7 @@ CourantNumber = -CourantNumber;
         
         %if algorithm is too fast, redo the time step with half the
         %original time step
-        if relativeError <= 1
+        if relativeError <= 0.05
             %Check if the max stable time step will exceed time range
             if simulationTime-t(n)<=dt
                 t(n+1)=simulationTime;

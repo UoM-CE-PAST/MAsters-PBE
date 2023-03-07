@@ -8,6 +8,7 @@
 % 
 % Last modified:
 % - 2022/03/06, MA: initial creation
+% - 2023/03/07, MA: Fixed growth rate
 %
 % Purpose: Defines a function handle containing the ode system
 % corresponding to the one-dimensional method of moments.This function
@@ -65,7 +66,7 @@ end
 theta = (temperature-18.85)/7.859;
 solubility = 1000*(p4*theta^4 + p3*theta^3 + p2*theta^2 + p1*theta + p0);
 supersaturation = concentration_mom/solubility;
-G = 1e6*3600*k1*exp(-k2/(temperature+273.15))*(supersaturation-1)^(2/3)*log(supersaturation)^(1/6)*exp(-k3/(((temperature+273.15)^2)*log(supersaturation)));
+G = 1e6*k1*exp(-k2/(temperature+273.15))*(supersaturation-1)^(2/3)*log(supersaturation)^(1/6)*exp(-k3/(((temperature+273.15)^2)*log(supersaturation))); %[um/s]
 
 %% ODE system
 
