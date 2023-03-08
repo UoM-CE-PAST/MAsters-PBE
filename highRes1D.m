@@ -17,6 +17,7 @@
 % - 2023/02/24, MA: added constant supersaturation mode
 % - 2023/03/03, MA: improved simulation accuracy (slowed simulation down at
 % later time steps when CFL condition is too forgiving).
+% - 2023/03/08, MA: fixed trapz function
 %
 % Purpose: Implements a high resolution finite volume method (with van Leer
 % limiter) to solve for the time evolution of a particle size distribution
@@ -83,7 +84,7 @@ function [f, concentration, G, supersaturation, m3, t,...
 
 %Initial values
 f(:,1)=initialPSD;
-m3(1)=trapz(L.^3.*f(:,1)');
+m3(1)=trapz(L,L.^3.*f(:,1)');
 concentration(1)=initialConcentration;
 T0 = (1/0.0359)*log(initialConcentration/3.37);
 if operationMode == 1
@@ -118,7 +119,7 @@ while temperature(n) == T0 || G(n) == 0
         t(n+1) = 0;
     end
     f(:,n+1)=initialPSD;
-    m3(n+1)=trapz(L.^3.*f(:,n+1)');
+    m3(n+1)=trapz(L,L.^3.*f(:,n+1)');
     concentration(n+1)=initialConcentration;
     if operationMode == 1
         temperature(n+1) = temperatureRamp(2,n+1);
@@ -185,7 +186,7 @@ if G(n)>0
         f(end,n+1)=f(end,n)-dt/dL*(G(n)*f(end,n)-G(n)*f(end-1,n))-0.5*dt/dL*G(n)*(1-dt/dL*G(n))*(-fluxLimiter(end)*(f(end,n)-f(end-1,n)));
     
         %% Use liquid phase mass balance to determine supersaturation at next time step 
-        m3(n+1)=trapz(L.^3.*f(:,n+1)');
+        m3(n+1)=trapz(L,L.^3.*f(:,n+1)');
         concentration(n+1)=concentration(n)-ParticleDensity*shapeFactor*(m3(n+1)-m3(n));
         
         % Interpolate temperature to find solubility and superstaturation
@@ -273,7 +274,7 @@ CourantNumber = -CourantNumber;
         f(1,n+1)=f(1,n)-dt/dL*(G(n)*f(2,n)-G(n)*f(1,n))+0.5*dt/dL*G(n)*(1+dt/dL*G(n))*(fluxLimiter(1)*(f(1+1,n)-f(1,n)));
     
         %% Use liquid phase mass balance to determine supersaturation at next time step 
-        m3(n+1)=trapz(L.^3.*f(:,n+1)');
+        m3(n+1)=trapz(L,L.^3.*f(:,n+1)');
         concentration(n+1)=concentration(n)-ParticleDensity*shapeFactor*(m3(n+1)-m3(n));
 
          % Interpolate temperature to find solubility and superstaturation

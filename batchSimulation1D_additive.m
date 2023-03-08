@@ -8,6 +8,7 @@
 % 
 % Last modified:
 % - 2023/03/07, MA: initial creation
+% - 2023/03/08, MA: fixed trapz function
 %
 % Purpose: to provide a framework for different simulations of a 1D batch
 % crystallization model in the presence of additive.
@@ -48,7 +49,11 @@ additiveConcentration = str2double(essentialParameters(2)); % [kg/kg]
 
 % array containing the solubility parameters for each additive
 % concentration: (c; p4; p3; p2; p1; p0) 
-solubilityParameters = [0 0.04 0.08; 3.594e-3 2.719e-3 2.408e-3; 9.957e-3 8.747e-3 9.19e-3; 1.377e-2 1.785e-2 2.039e-2; 2.841e-2 3.658e-2 4.265e-2; 4.171e-2 5.046e-2 6.055e-2];
+solubilityParameters = [0 0.04 0.08; 3.594e-3 2.719e-3 2.408e-3;
+    9.957e-3 8.747e-3 9.19e-3;
+    1.377e-2 1.785e-2 2.039e-2;
+    2.841e-2 3.658e-2 4.265e-2;
+    4.171e-2 5.046e-2 6.055e-2];
 p4 = interp1(solubilityParameters(1,:),solubilityParameters(2,:),additiveConcentration);
 p3 = interp1(solubilityParameters(1,:),solubilityParameters(3,:),additiveConcentration);
 p2 = interp1(solubilityParameters(1,:),solubilityParameters(4,:),additiveConcentration);
@@ -85,10 +90,10 @@ elseif choicePSD == 2
 end
 
 % calculate initial moments using intergation
-m0i=trapz(initialPSD);
-m1i=trapz(L.*initialPSD);
-m2i=trapz(L.^2.*initialPSD);
-m3i=trapz(L.^3.*initialPSD);
+m0i=trapz(L,initialPSD);
+m1i=trapz(L,L.*initialPSD);
+m2i=trapz(L,L.^2.*initialPSD);
+m3i=trapz(L,L.^3.*initialPSD);
 
 % define vector containing initial conditions for method of moments
 y0 = [m0i m1i m2i m3i initialConcentration];
@@ -113,6 +118,10 @@ switch operationMode
         [f, concentration, G, supersaturation, m3, t,...
             temperature] = highRes1D_additive(dL, L, simulationTime, k1, k2, k3, p0, p1, p2, p3, p4, shapeFactor,...
             temperatureRamp, particleDensity, initialConcentration, initialPSD, operationMode);
+        %calculate average length for comparison to method of moments
+        m0 = trapz(L,f);
+        m1 = trapz(L,L'.*f);
+        averageLength = m1./m0;
 
         % method of moments solution:
         [t_mom, y] = ode15s(@(t_mom, y)mom_additive(t_mom, y, temperatureRamp, k1, k2, k3, p0, p1, p2, p3, p4, ...
@@ -120,6 +129,8 @@ switch operationMode
         concentration_mom = y(:,5);
         % extract temperature profile predicted by method of moments
         temperature_mom = interp1(temperatureRamp(1,:),temperatureRamp(2,:),t_mom);
+        % average length predicted by method of moments
+        averageLength_mom  = y(:,2)./y(:,1);
 
 % solubility curve plots
         figure(1)
@@ -157,7 +168,7 @@ switch operationMode
         hold on
         
         % concentration profile predicted by method of moments
-%         plot(t_mom,concentration_mom,'--','linewidth',1.2)
+         plot(t_mom,concentration_mom,'--','linewidth',1.2)
         
         set(gca,'FontSize',18)
         title('Concentration profile')
@@ -166,7 +177,20 @@ switch operationMode
         legend('High resolution','Method of moments')
         
         % average length profile
-
+        subplot(2,1,2)
+        % average length profile of system starting at equilibrium then crash
+        % cooling:
+        plot(t,averageLength,'linewidth',1.2)
+        hold on
+        
+        % average length profile predicted by method of moments
+        plot(t_mom,averageLength_mom,'--','linewidth',1.2)
+    
+        set(gca,'FontSize',18)  
+        title('Average length profile')
+        xlabel({'time' '[s]'})
+        ylabel({'Average length', ['[' char(181) 'm]']})
+        legend('High resolution (starting from equilibrium)','Method of moments')
 % PSD plots:
         figure(3)
         % PSD evolution comparison
@@ -176,7 +200,7 @@ switch operationMode
         
         set(gca,'FontSize',18)  
         title('PSD evolution comparison')
-        xlabel({'Length' '[' char(181) 'm]'})
+        xlabel({'Length' ['[' char(181) 'm]']})
         ylabel({'Number density', '[μm^{-1} kg^{-1}]'})
         legend('Initial PSD (starting from equilibrium)', ...
             'Final PSD (starting from equilibrium)')

@@ -9,6 +9,7 @@
 % Last modified:
 % - 2023/03/06, MA: Initial creation
 % - 2023/03/07, MA: Fixed growth rate
+% - 2023/03/08, MA: fixed trapz function
 %
 % Purpose: Implements a high resolution finite volume method (with van Leer
 % limiter) to solve for the time evolution of a particle size distribution
@@ -87,7 +88,7 @@ function [f, concentration, G, supersaturation, m3, t,...
 
 %Initial values
 f(:,1)=initialPSD;
-m3(1)=trapz(L.^3.*f(:,1)');
+m3(1)=trapz(L,L.^3.*f(:,1)');
 concentration(1)=initialConcentration;
 T0 = 7.859*fzero(@(theta) 1000*(p4*theta^4 + p3*theta^3 + p2*theta^2 + p1*theta + p0) - initialConcentration,1) + 18.85;
 if operationMode == 2
@@ -123,7 +124,7 @@ while temperature(n) == T0 || G(n) == 0
         t(n+1)=temperatureRamp(1,n+1);
     end
     f(:,n+1)=initialPSD;
-    m3(n+1)=trapz(L.^3.*f(:,n+1)');
+    m3(n+1)=trapz(L,L.^3.*f(:,n+1)');
     concentration(n+1)=initialConcentration;
     if operationMode == 2
         temperature(n+1) = interp1(temperatureRamp(1,:),temperatureRamp(2,:),concentration(n+1));
@@ -191,7 +192,7 @@ if G(n)>0
         f(end,n+1)=f(end,n)-dt/dL*(G(n)*f(end,n)-G(n)*f(end-1,n))-0.5*dt/dL*G(n)*(1-dt/dL*G(n))*(-fluxLimiter(end)*(f(end,n)-f(end-1,n)));
     
         %% Use liquid phase mass balance to determine supersaturation at next time step 
-        m3(n+1)=trapz(L.^3.*f(:,n+1)');
+        m3(n+1)=trapz(L,L.^3.*f(:,n+1)');
         concentration(n+1)=concentration(n)-ParticleDensity*shapeFactor*(m3(n+1)-m3(n));
         
         % Interpolate temperature to find solubility and superstaturation
@@ -281,7 +282,7 @@ CourantNumber = -CourantNumber;
         f(1,n+1)=f(1,n)-dt/dL*(G(n)*f(2,n)-G(n)*f(1,n))+0.5*dt/dL*G(n)*(1+dt/dL*G(n))*(fluxLimiter(1)*(f(1+1,n)-f(1,n)));
     
         %% Use liquid phase mass balance to determine supersaturation at next time step 
-        m3(n+1)=trapz(L.^3.*f(:,n+1)');
+        m3(n+1)=trapz(L,L.^3.*f(:,n+1)');
         concentration(n+1)=concentration(n)-ParticleDensity*shapeFactor*(m3(n+1)-m3(n));
 
          % Interpolate temperature to find solubility and superstaturation

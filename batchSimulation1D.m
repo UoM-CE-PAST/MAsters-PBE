@@ -11,6 +11,7 @@
 % - 2023/03/02, MA: added dialogue boxes to gather user input
 % - 2023/03/06, MA: added additive dependency
 % - 2023/03/07, MA: removed additive dependency (to a separate file)
+% - 2023/03/08, MA: fixed trapz function
 %
 % Purpose: to provide a framework for different simulations of a 1D batch
 % crystallization model.
@@ -71,10 +72,10 @@ elseif choicePSD == 2
 end
 
 % calculate initial moments using intergation
-m0i=trapz(initialPSD);
-m1i=trapz(L.*initialPSD);
-m2i=trapz(L.^2.*initialPSD);
-m3i=trapz(L.^3.*initialPSD);
+m0i=trapz(L,initialPSD);
+m1i=trapz(L,L.*initialPSD);
+m2i=trapz(L,L.^2.*initialPSD);
+m3i=trapz(L,L.^3.*initialPSD);
 
 % define vector containing initial conditions for method of moments
 y0 = [m0i m1i m2i m3i initialConcentration];
@@ -91,7 +92,7 @@ switch operationMode
         definput = {'25'};
         constantTemperature = str2double(inputdlg(prompt,dlgtitle, [1 35],definput));
         
-        % create more realistic temperature ramp and generate a simulation starting
+        % create crash cooling temperature ramp and generate a simulation starting
         % from equilibrium then crash cooling
         temperatureRamp = [0 5 5.00001 simulationTime; T0 T0 constantTemperature ...
             constantTemperature];
@@ -100,8 +101,8 @@ switch operationMode
             temperatureRamp, particleDensity, initialConcentration, ...
             initialPSD, operationMode);
         %calculate average length for comparison to method of moments
-        m0 = trapz(f);
-        m1 = trapz(L'.*f);
+        m0 = trapz(L,f);
+        m1 = trapz(L,L'.*f);
         averageLength = m1./m0;
         
         % use less realistic temperature ramp generate an alternate simulation at a
@@ -113,8 +114,8 @@ switch operationMode
             initialPSD, operationMode);
     
         %calculate average length for comparison to method of moments
-        m0_alt = trapz(f_alt);
-        m1_alt = trapz(L'.*f_alt);
+        m0_alt = trapz(L,f_alt);
+        m1_alt = trapz(L,L'.*f_alt);
         averageLength_alt = m1_alt./m0_alt;
         
         % solve using method of moments to check concentration and moments from
@@ -256,8 +257,8 @@ switch operationMode
             temperatureRamp, particleDensity, initialConcentration, ...
             initialPSD, operationMode);
         %calculate average length for comparison to method of moments
-        m0 = trapz(f);
-        m1 = trapz(L'.*f);
+        m0 = trapz(L,f);
+        m1 = trapz(L,L'.*f);
         averageLength = m1./m0;
         
         % method of moments solution:
