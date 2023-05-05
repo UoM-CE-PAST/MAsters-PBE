@@ -10,7 +10,7 @@ ___
 
 ## Dependencies
 
-* MATLAB R2022b [*required*]
+* MATLAB R2023a [*required*]
 
 ## Installation instructions
 
