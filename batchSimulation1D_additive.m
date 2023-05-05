@@ -311,42 +311,42 @@ switch simulationMode
         upperlimit = simulationTime; 
         lowerlimit = 0.1*simulationTime;
 
-        plot(t,stdLength/stdLength(1),'LineWidth',1.5)
+        tiles = tiledlayout(1,2,'Padding','compact','TileSpacing','compact','Units','inches');
+        nexttile
+        plot(t,stdLength/stdLength(1),'LineWidth',1)
         hold on
 
-        plot(t_upwind,stdLength_upwind/stdLength(1),'-.','LineWidth',1.5)
+        plot(t_upwind,stdLength_upwind/stdLength(1),'-.','LineWidth',1)
 
-        plot(t_LW,stdLength_LW/stdLength(1),'--','LineWidth',1.5)
+        plot(t_LW,stdLength_LW/stdLength(1),'--','LineWidth',1)
 
-        set(gca,'FontSize',8,'XTick',[],'fontname','times')
-        fig = gcf;
-        fig.Position(3:4)=[312 312];
+        set(gca,'FontSize',8,'FontName','times','TitleHorizontalAlignment','left')
         colororder(['#000000';'#00FFFF';'#FFD700'])
         legend('High resolution scheme', 'Upwind scheme', 'Lax-Wendroff scheme','Location','northwest')
-        xlabel({'{\it t}','[h]'})
-        ylabel({'\sigma_{model}/\sigma_{actual}','[-]'})
+        xlabel({'{\it t} [h]'},'FontSize',10)
+        ylabel({'\sigma_{model}/\sigma_{actual} [-]'},'FontSize',10)
         xlim([lowerlimit upperlimit])
-        fileName= 'Gaussian standard deviation scheme comaprison.pdf';
-        fpath = strcat('C:\Users\moham\OneDrive - The University of Manchester\Year 4 modules\Dissertation (CHEN40100)\Figures\Batch1D_additive\SchemeComparison\', timeDate);
-        exportgraphics(gca, fullfile(fpath, fileName), 'ContentType','vector');
+        % pbaspect([1 1.1 1])
+        title('a)','FontWeight','bold','Fontsize',12)
+
         clear upperlimit lower limit
 
 % upwind PSD comparison plots:
         figure(2)
-        plot(L, initialPSD,':','LineWidth',1.5) % initial
+        plot(L, initialPSD,':','LineWidth',1) % initial
         hold on
 
-        plot(L,f(:,end), 'LineWidth',1.5) % high resolution
+        plot(L,f(:,end), 'LineWidth',1) % high resolution
 
-        plot(L, f_upwind(:,end),'--', 'LineWidth',1.5) % upwind
+        plot(L, f_upwind(:,end),'--', 'LineWidth',1) % upwind
 
-        set(gca,'FontSize',8,'FontName','times')
+        set(gca,'FontSize',8,'FontName','times','TitleHorizontalAlignment','left')
         fig = gcf;
         fig.Position(3:4)=[312 312];
         colororder(["#000000";"#000000";"#FFD700"])
         legend('Initial condition', 'High resolution solution', 'Upwind solution','Location','north')
-        xlabel({'L','[\mum]'})
-        ylabel({'f','[kg^{-1}\mum^{-1}]'})
+        xlabel({['L [' char(181) 'm]']})
+        ylabel({['f [kg^{-1} ' char(181) 'm^{-1}]']})
 
 % Lax-Wendroff comparison:
         % pulse:
@@ -362,24 +362,36 @@ switch simulationMode
             temperatureRamp, particleDensity, initialConcentration, initialPSD, growthFactor, solubilityFactor);
         
 % Lax-Wendroff PSD comparison plots:
-        figure(3)
-        plot(L, initialPSD,':','LineWidth',1.5) % initial
+        figure(1)
+        nexttile
+        plot(L, initialPSD,':','LineWidth',1) % initial
         hold on
 
-        plot(L,f(:,end), 'LineWidth',1.5) % high resolution
+        plot(L, f_LW(:,end),'--', 'LineWidth',1) % Lax-Wendroff
 
-        plot(L, f_LW(:,end),'--', 'LineWidth',1.5) % Lax-Wendroff
+        plot(L,f(:,end), 'LineWidth',1) % high resolution
 
-        set(gca,'FontSize',8,'fontname','times')
-        fig = gcf;
-        fig.Position(3:4)=[312 312];
+        
+
+        set(gca,'FontSize',8,'FontName','times','TitleHorizontalAlignment','left')
         colororder(['#000000';'#000000';'#00A300'])
-        legend('Initial condition', 'High resolution solution', 'Lax-Wendroff solution','Location','north')
-        xlabel({'{\it L}',['[' char(181) 'm]']})
-        ylabel({'{\it f}',['[kg^{-1}' char(181) 'm^{-1}]']})
-        fileName='Lax-Wendroff PSD comparison.pdf';
+        legend('Initial condition','Lax-Wendroff solution', 'High resolution solution', 'Location','southwest')
+        xlabel({['{\it L} [' char(181) 'm]']},'FontSize',10)
+        ylabel({['{\it f}  [kg^{-1}' char(181) 'm^{-1}]']},'FontSize',10)
+        % pbaspect([1 1.1 1])
+        title('b)','FontWeight','bold','Fontsize',12)
+
+        tiles.InnerPosition(1:2) = [3 3];
+        tiles.InnerPosition(4) = 3.25;
+        tiles.OuterPosition(3) = 7;
+
+        fig = gcf;
+        fig.Units = "normalized";
+        fig.OuterPosition = [0 0 1 1];
+
+        fileName='PSD numerical schemes comparisons.pdf';
         fpath = strcat('C:\Users\moham\OneDrive - The University of Manchester\Year 4 modules\Dissertation (CHEN40100)\Figures\Batch1D_additive\SchemeComparison\', timeDate);
-        exportgraphics(gca, fullfile(fpath, fileName), 'ContentType','vector');
+        exportgraphics(tiles, fullfile(fpath, fileName), 'ContentType','vector');
 
 % store operating conditions etc in a matrix to be exported as a
 % text file
