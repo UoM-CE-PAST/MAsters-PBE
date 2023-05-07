@@ -14,7 +14,7 @@
 % - 2023/03/27, MA: added constant supersaturation operation
 % - 2023/04/23, MA: massive improvements to simulation and plots
 % - 2023/05/06, MA: added attainable region analysis
-% - 2023/05/07, MA: major clean up
+% - 2023/05/07, MA: major clean up + small fixes
 %
 % Purpose: to provide a framework for different simulations of a 2D batch
 % crystallization model in the presence of additive.
@@ -1595,7 +1595,7 @@ switch simulationMode
         writecell(benchmark,fullfile(fpath,fileName))
 
 %% Attainable region pure growth
-    case 8
+    case 7
         simulationTime = 2000; % [h]
 % create a folder with the current date and time:
         mkdir(strcat(path,'Batch2D_additive\Attainable region growth'), folderName)
@@ -1617,6 +1617,7 @@ switch simulationMode
         Tmax = (1/0.036)*log(cmax/(3.37*solubilityFactor));
         Tmin = (1/0.036)*log(cmin/(3.37*solubilityFactor));
 
+% additive varaition
         additiveRange = [0.08 0];
         for k = 1:length(additiveRange)
             additiveConcentration = additiveRange(k);
@@ -1666,6 +1667,7 @@ switch simulationMode
             
             if k == 2
                 set(gca,'FontSize',8,'FontName','times','TitleHorizontalAlignment','left')
+                title('a)','FontWeight','bold','Fontsize',12)
                 colororder(gca,['#000000'; '#d00000';'#03045e'; '#808080'])
                 xlabel({['{\it L}_{1,V} [' char(181) 'm]']},'FontSize',10)
                 xticks(linspace(200,600,3))
@@ -1678,7 +1680,7 @@ switch simulationMode
             end
         end
         
-
+% supersaturation variation
         supersaturationRange = [1.1 1.2];
         for k = 1:length(supersaturationRange)
             Smax = supersaturationRange(k);
@@ -1720,6 +1722,7 @@ switch simulationMode
             
             if k == 2
                 set(gca,'FontSize',8,'FontName','times','TitleHorizontalAlignment','left')
+                title('b)','FontWeight','bold','Fontsize',12)
                 colororder(gca,['#000000'; '#d00000';'#03045e'; '#808080'])
                 xlabel({['{\it L}_{1,V} [' char(181) 'm]']},'FontSize',10)
                 xticks(linspace(200,600,3))
@@ -1739,6 +1742,7 @@ switch simulationMode
             end
         end
 
+% attainable region determination
         for k = 1:length(additiveRange)
             additiveConcentration = additiveRange(k);
             solubilityFactor = interp1(additiveFactors(1,:),additiveFactors(2,:),additiveRange(k)); % increase solubility appropriately
@@ -1813,7 +1817,7 @@ switch simulationMode
         fpath = strcat(path,'Batch2D_additive\Attainable region growth\', folderName);
         save(fullfile(fpath, fileName))
         %% Powerpoint figures
-    case 9
+    case 8
  % create a folder with the current date and time:
         mkdir(strcat(path,'Batch2D_additive\Powerpoint figures'), folderName)
 
