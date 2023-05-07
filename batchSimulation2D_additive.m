@@ -13,6 +13,8 @@
 % - 2023/03/24, MA: improved high resolution memory efficiency
 % - 2023/03/27, MA: added constant supersaturation operation
 % - 2023/04/23, MA: massive improvements to simulation and plots
+% - 2023/05/06, MA: added attainable region analysis
+% - 2023/05/07, MA: major clean up
 %
 % Purpose: to provide a framework for different simulations of a 2D batch
 % crystallization model in the presence of additive.
@@ -101,10 +103,10 @@ L2 = 1:dL2:1000; % [um]
 
 L = [l1(:) l2(:)];
 clear l1 l2
-mean = [250 400];
+meanDimensions = [250 400];
 standardDeviation = [50 0; 0 50];
 
-initialPSD = 1e5*mvnpdf(L,mean, standardDeviation);
+initialPSD = 1e5*mvnpdf(L,meanDimensions, standardDeviation);
 initialPSD = reshape(initialPSD,length(L2),length(L1));
 
 % calculate initial moments using intergation of initial PSD
@@ -130,7 +132,7 @@ initialm23 = sum(L1.^2.*L2'.^3.*initialPSD,'all')*dL1*dL2;
 y0 = [initialm00 initialm10 initialm01 initialm20 initialm02 initialm11 initialm21 initialm12 initialm22 initialm30 initialm31 initialm03 initialm40 initialm13 initialm23 initialm41 initialConcentration];
 
 % prompt user for simulation mode
-simulationMode = listdlg("ListString",{'volume-limited temperature cycling','Additive effect on temperature cycles','Constant temperature growth 2D test','Constant temperature dissolution 2D test','Supersaturation limit effect on temperature cycles','Relative kinetics effect on temperature cycles','Pure growth base case','Pure growth bin size varitaion','Powerpoint figures'},"PromptString",'Please select the required simulation',"SelectionMode","single");
+simulationMode = listdlg("ListString",{'volume-limited temperature cycling','Additive effect on temperature cycles','Supersaturation limit effect on temperature cycles','Relative kinetics effect on temperature cycles','Pure growth base case','Pure growth bin size varitaion','Attainable region pure growth','Powerpoint figures'},"PromptString",'Please select the required simulation',"SelectionMode","single");
 switch simulationMode
     %% Iso-volume temperature cycles base case
     case 1
@@ -651,289 +653,8 @@ switch simulationMode
         fileName='Additive variation parameters';
         fpath = strcat(path, 'Batch2D_additive\Additive variation cycles\', folderName);
         writecell(parametersCell,fullfile(fpath,fileName))
-        %% Pure growth
-    case 3
-        constantTemperature = 0.5*T0; % [C]
-        temperatureRamp = [0 1 1.001 simulationTime; T0 T0 constantTemperature constantTemperature];
-
-% High resolution solution
-        [finalPSD, concentration, G1, G2, supersaturation, m00, m31, m22, m21, m41, m23, t, temperature] = highRes2D_additiveTD(dL1,dL2, L1, L2, simulationTime, kg11, kg12, kg13, kg21, kg22, kg23, kd11, kd12, kd21, kd22, shapeFactor, temperatureRamp, particleDensity, initialConcentration, initialPSD,solubilityFactor,growthFactor);
-        averageRadius = m31./m21;
-        averageHeight = m22./m21;
-        stdRadius = sqrt(abs(m41./m21 - averageRadius.^2));
-        stdHeight = sqrt(abs(m23./m21 - averageHeight.^2));
-
-% Method of moments solution
-        options = odeset('RelTol',1e-8,'AbsTol',1e-10);
-        [t_mom, y] = ode113(@(t_mom, y)mom2D_additiveTD(t_mom,y,kg11,kg12,kg13,kg21,kg22,kg23,kd11,kd12,kd21,kd22,temperatureRamp,shapeFactor,particleDensity,solubilityFactor,growthFactor), [0 simulationTime], y0,options);
-        concentration_mom = y(:,17);
-        m00_mom = y(:,1);
-        m21_mom = y(:,7);
-        m31_mom = y(:,11);
-        m22_mom = y(:,9);
-        m41_mom = y(:,16);
-        m23_mom = y(:,15);
-        averageRadius_mom = m31_mom./m21_mom;
-        averageHeight_mom = m22_mom./m21_mom;
-        stdRadius_mom = sqrt(m41_mom./m21_mom - averageRadius_mom.^2);
-        stdHeight_mom = sqrt(m23_mom./m21_mom - averageHeight_mom.^2);
-
-        % concentration plot
-        figure(1)
-        plot(t,concentration,"LineWidth",1)
-        hold on
-        plot(t_mom,concentration_mom,'--',"LineWidth",1)
-        set(gca,'FontSize',20)
-        title('Concentration profile')
-        xlabel({'time' '[s]'})
-        ylabel({'Concentration' '[g kg^{-1}]'})
-        legend('High resolution','Method of moments')
-
-% solubility plot
-        figure(2)
-        plot(temperature,concentration,'linewidth',1.6)
-        hold on
-        % generate solubility curve for reference
-        T = 5:0.1:35;
-        solubility = solubilityFactor*3.37*exp(0.036*T);
-        plot(T,solubility,"LineWidth",1)
-        set(gca,'FontSize',20)
-        title('Solubility curve')
-        xlabel({'Temperature', ['[' char(176) 'C]']})
-        ylabel({'Concentration' '[g kg^{-1}]'})
-        legend('High resolution', ...
-            'Solubility curve')
-
-% PSSD plots
-        figure(3)
-        contourf(L1,L2,initialPSD./max(initialPSD(:)),[0.1 0.5 0.9]) % initial PSSD
-        hold on
-        contourf(L1,L2,finalPSD./max(finalPSD(:)), [0.1 0.5 0.9],'--') % final PSSD
-        xlim([0 600])
-        ylim([100 1400])
-
-        set(gca,'FontSize',20)
-        title('PSSD')
-        xlabel({'L1', ['[' char(181) 'm]']})
-        ylabel({'L2', ['[' char(181) 'm]']})
-
-        % standard deviation plots
-        figure(4)
-        subplot(2,1,1)
-        plot(t,stdRadius,"LineWidth",1)
-        hold on
-        plot(t_mom,stdRadius_mom,'--',"LineWidth",1)
-
-        set(gca,'FontSize',20)
-        title('Radius standard deviation')
-        xlabel({'Time', '[h]'})
-        ylabel({'\sigma_{11}', ['[' char(181) 'm]']})
-        legend('High resolution', 'Method of moments')
-
-        subplot(2,1,2)
-        plot(t,stdHeight,"LineWidth",1)
-        hold on
-        plot(t_mom,stdHeight_mom,'--',"LineWidth",1)
-
-        set(gca,'FontSize',20)
-        title('Height standard deviation')
-        xlabel({'Time', '[h]'})
-        ylabel({'\sigma_{22}', ['[' char(181) 'm]']})
-        legend('High resolution', 'Method of moments')
-
-% moment plots:
-        figure(5)
-        subplot(3,2,1)
-        plot(t,m00,"LineWidth",1)
-        hold on
-        plot(t_mom,m00_mom,'--',"LineWidth",1)
-        set(gca,'FontSize',20)
-        title('m00 profile')
-        legend('High resolution','Method of moments')
-
-        subplot(3,2,2)
-        plot(t,m21,"LineWidth",1)
-        hold on
-        plot(t_mom,m21_mom,'--',"LineWidth",1)
-        set(gca,'FontSize',20)
-        title('m21 profile')
-        legend('High resolution','Method of moments')
-
-        subplot(3,2,3)
-        plot(t,m31,"LineWidth",1)
-        hold on
-        plot(t_mom,m31_mom,'--',"LineWidth",1)
-        set(gca,'FontSize',20)
-        title('m31 profile')
-        legend('High resolution','Method of moments')
-
-        subplot(3,2,4)
-        plot(t,m22,"LineWidth",1)
-        hold on
-        plot(t_mom,m22_mom,'--',"LineWidth",1)
-        set(gca,'FontSize',20)
-        title('m22 profile')
-        legend('High resolution','Method of moments')
-
-        subplot(3,2,5)
-        plot(t,m41,"LineWidth",1)
-        hold on
-        plot(t_mom,m41_mom,'--',"LineWidth",1)
-        set(gca,'FontSize',20)
-        title('m41 profile')
-        legend('High resolution','Method of moments')
-
-        subplot(3,2,6)
-        plot(t,m23,"LineWidth",1)
-        hold on
-        plot(t_mom,m23_mom,'--',"LineWidth",1)
-        set(gca,'FontSize',20)
-        title('m23 profile')
-        legend('High resolution','Method of moments')
-
-
-        %% Pure dissolution
-    case 4
-        constantTemperature = 1.05*T0; % [C]
-        temperatureRamp = [0 1 1.001 simulationTime; T0 T0 constantTemperature constantTemperature];
-        
-% High resolution solution
-        [finalPSD, concentration, G1, G2, supersaturation, m00, m31, m22, m21, m41, m23, t, temperature] = highRes2D_additiveTD(dL1,dL2, L1, L2, simulationTime, kg11, kg12, kg13, kg21, kg22, kg23, kd11, kd12, kd21, kd22, shapeFactor, temperatureRamp, particleDensity, initialConcentration, initialPSD,solubilityFactor,growthFactor);
-        averageRadius = m31./m21;
-        averageHeight = m22./m21;
-        stdRadius = sqrt(abs(m41./m21 - averageRadius.^2));
-        stdHeight = sqrt(abs(m23./m21 - averageHeight.^2));
-
-% Method of moments solution
-    options = odeset('RelTol',1e-8,'AbsTol',1e-10);
-        [t_mom, y] = ode113(@(t_mom, y)mom2D_additiveTD(t_mom,y,kg11,kg12,kg13,kg21,kg22,kg23,kd11,kd12,kd21,kd22,temperatureRamp,shapeFactor,particleDensity,solubilityFactor,growthFactor), [0 simulationTime], y0,options);
-        concentration_mom = y(:,17);
-        m00_mom = y(:,1);
-        m21_mom = y(:,7);
-        m31_mom = y(:,11);
-        m22_mom = y(:,9);
-        m41_mom = y(:,16);
-        m23_mom = y(:,15);
-        averageRadius_mom = m31_mom./m21_mom;
-        averageHeight_mom = m22_mom./m21_mom;
-        stdRadius_mom = sqrt(m41_mom./m21_mom - averageRadius_mom.^2);
-        stdHeight_mom = sqrt(m23_mom./m21_mom - averageHeight_mom.^2);
-
-% concentration plot
-        figure(1)
-        plot(t,concentration,"LineWidth",1)
-        hold on
-        plot(t_mom,concentration_mom,'--',"LineWidth",1)
-        set(gca,'FontSize',20)
-        title('Concentration profile')
-        xlabel({'time' '[s]'})
-        ylabel({'Concentration' '[g kg^{-1}]'})
-        legend('High resolution','Method of moments')
-
-% solubility plot
-        figure(2)
-        plot(temperature,concentration,'linewidth',1.6)
-        hold on
-        % generate solubility curve for reference
-        T = 5:0.1:35;
-        solubility = solubilityFactor*3.37*exp(0.036*T);
-        plot(T,solubility,"LineWidth",1)
-        set(gca,'FontSize',20)
-        title('Solubility curve')
-        xlabel({'Temperature', ['[' char(176) 'C]']})
-        ylabel({'Concentration' '[g kg^{-1}]'})
-        legend('High resolution', ...
-            'Solubility curve')
-
-% PSSD plots
-        figure(3)
-        contourf(L1,L2,initialPSD./max(initialPSD(:)),[0.1 0.5 0.9]) % initial PSSD
-        hold on
-        contourf(L1,L2,finalPSD./max(finalPSD(:)), [0.1 0.5 0.9],'--') % final PSSD
-        xlim([0 600])
-        ylim([0 1400])
-
-        set(gca,'FontSize',20)
-        title('PSSD')
-        xlabel({'L1', ['[' char(181) 'm]']})
-        ylabel({'L2', ['[' char(181) 'm]']})
-
-% standard deviation plots
-        figure(4)
-        subplot(2,1,1)
-        plot(t,stdRadius,"LineWidth",1)
-        hold on
-        plot(t_mom,stdRadius_mom,'--',"LineWidth",1)
-
-        set(gca,'FontSize',20)
-        title('Radius standard deviation')
-        xlabel({'Time', '[h]'})
-        ylabel({'\sigma_{11}', ['[' char(181) 'm]']})
-        legend('High resolution', 'Method of moments')
-
-        subplot(2,1,2)
-        plot(t,stdHeight,"LineWidth",1)
-        hold on
-        plot(t_mom,stdHeight_mom,'--',"LineWidth",1)
-
-        set(gca,'FontSize',20)
-        title('Height standard deviation')
-        xlabel({'Time', '[h]'})
-        ylabel({'\sigma_{22}', ['[' char(181) 'm]']})
-        legend('High resolution', 'Method of moments')
-
-% moment plots
-        figure(5)
-        subplot(3,2,1)
-        plot(t,m00,"LineWidth",1)
-        hold on
-        plot(t_mom,m00_mom,'--',"LineWidth",1)
-        set(gca,'FontSize',20)
-        title('m00 profile')
-        legend('High resolution','Method of moments')
-
-        subplot(3,2,2)
-        plot(t,m21,"LineWidth",1)
-        hold on
-        plot(t_mom,m21_mom,'--',"LineWidth",1)
-        set(gca,'FontSize',20)
-        title('m21 profile')
-        legend('High resolution','Method of moments')
-
-        subplot(3,2,3)
-        plot(t,m31,"LineWidth",1)
-        hold on
-        plot(t_mom,m31_mom,'--',"LineWidth",1)
-        set(gca,'FontSize',20)
-        title('m31 profile')
-        legend('High resolution','Method of moments')
-
-        subplot(3,2,4)
-        plot(t,m22,"LineWidth",1)
-        hold on
-        plot(t_mom,m22_mom,'--',"LineWidth",1)
-        set(gca,'FontSize',20)
-        title('m22 profile')
-        legend('High resolution','Method of moments')
-
-        subplot(3,2,5)
-        plot(t,m41,"LineWidth",1)
-        hold on
-        plot(t_mom,m41_mom,'--',"LineWidth",1)
-        set(gca,'FontSize',20)
-        title('m41 profile')
-        legend('High resolution','Method of moments')
-
-        subplot(3,2,6)
-        plot(t,m23,"LineWidth",1)
-        hold on
-        plot(t_mom,m23_mom,'--',"LineWidth",1)
-        set(gca,'FontSize',20)
-        title('m23 profile')
-        legend('High resolution','Method of moments')
-
 %% Supersaturation effect on temperature cycles
-    case 5
+    case 3
         % create a folder with the current date and time:
         mkdir(strcat(path,'Batch2D_additive\Supersaturation variation cycles'), folderName)
 
@@ -1207,7 +928,7 @@ switch simulationMode
         writecell(parametersCell,fullfile(fpath,fileName))
 
 %% Relative kinetics variation
-    case 6
+    case 4
 % create a folder with the current date and time:
         mkdir(strcat(path,'Batch2D_additive\Relative kinetics variation cycles'), folderName)
 
@@ -1517,7 +1238,7 @@ switch simulationMode
         writecell(parametersCell,fullfile(fpath,fileName))
 
 %% Pure growth base case
-    case 7
+    case 5
 % create a folder with the current date and time:
         mkdir(strcat(path,'Batch2D_additive\Pure growth base case'), folderName)
 
@@ -1589,7 +1310,6 @@ switch simulationMode
         contourf(L1,L2,initialPSD./max(initialPSD(:)),[0.1 0.5 0.9],'FaceAlpha',0.6); % initial PSSD
         contourf(L1,L2,finalPSD./max(finalPSD(:)), [0.1 0.5 0.9],'FaceAlpha',0.6); % final PSSD
 
-
         set(gca,'FontSize',8,'FontName','times','TitleHorizontalAlignment','left')
         colororder(gca,['#000000'; '#00A300';'#d00000';'#03045e'; '#000000'])
         xlabel({['{\it L}_{1,V} [' char(181) 'm]']},'FontSize',10)
@@ -1607,16 +1327,12 @@ switch simulationMode
         plot(temperature,concentration,"LineWidth",1)
         hold on
 
-
         % generate solubility curve for reference
         T = 0:0.1:40;
         solubility =solubilityFactor*3.37*exp(0.036*T);
         plot(T,solubility,"LineWidth",1)
         
         set(gca,'FontSize',8,'FontName','times','TitleHorizontalAlignment','left')
-        fig = gcf;
-        fig.Units = "inches";
-        fig.OuterPosition(3)=3.25;
         xlabel({['{\it T} [' char(176) 'C]']},'FontSize',10)
         ylabel({'{\it c} [g kg^{-1}]'},'FontSize',10)
         % pbaspect([1 1.1 1])
@@ -1762,7 +1478,7 @@ switch simulationMode
         writecell(parametersCell,fullfile(fpath,fileName))
 
         %% Pure growth bin size variation
-        case 8
+        case 6
 % create a folder with the current date and time:
         mkdir(strcat(path,'Batch2D_additive\Bin size variation growth'), folderName)
 
@@ -1801,10 +1517,10 @@ switch simulationMode
             
             L = [l1(:) l2(:)];
             clear l1 l2
-            mean = [250 400];
+            meanDimensions = [250 400];
             standardDeviation = [50 0; 0 50];
             
-            initialPSD = 1e5*mvnpdf(L,mean, standardDeviation);
+            initialPSD = 1e5*mvnpdf(L,meanDimensions, standardDeviation);
             initialPSD = reshape(initialPSD,length(L2),length(L1));
              
             % memory efficient high resolution solution
@@ -1878,6 +1594,224 @@ switch simulationMode
         fpath = strcat(path, 'Batch2D_additive\Bin size variation growth\', folderName);
         writecell(benchmark,fullfile(fpath,fileName))
 
+%% Attainable region pure growth
+    case 8
+        simulationTime = 2000; % [h]
+% create a folder with the current date and time:
+        mkdir(strcat(path,'Batch2D_additive\Attainable region growth'), folderName)
+        
+% prompt user for desired volume and supersaturation limits
+        prompt = {'Desired final yield (as a multiple of the original mass):','Constant supersaturation:'};
+        dlgtitle = 'Temperature cycle parameters';
+        definput = {'3','1.15'};
+        cycleParameters = inputdlg(prompt,dlgtitle, [1 35],definput);
+        yieldFactor = str2double(cycleParameters(1));
+        maxCycleNumber = 0;
+        Smin = 0.9;
+        Smax = str2double(cycleParameters(2));
+        supersaturationLimits = [Smin Smax];
+        m21min = initialm21;
+        m21max = yieldFactor*m21min;
+        cmax = initialConcentration;
+        cmin = cmax - particleDensity*shapeFactor*(m21max - m21min);
+        Tmax = (1/0.036)*log(cmax/(3.37*solubilityFactor));
+        Tmin = (1/0.036)*log(cmin/(3.37*solubilityFactor));
+
+        additiveRange = [0.08 0];
+        for k = 1:length(additiveRange)
+            additiveConcentration = additiveRange(k);
+            solubilityFactor = interp1(additiveFactors(1,:),additiveFactors(2,:),additiveRange(k)); % increase solubility appropriately
+            growthFactor = interp1(additiveFactors(1,:),additiveFactors(3,:),additiveRange(k)); % slows down rate of radius growth appropriately
+
+            Tmax = (1/0.036)*log(cmax/(3.37*solubilityFactor));
+            Tmin = (1/0.036)*log(cmin/(3.37*solubilityFactor));
+
+% memory efficient high resolution solution:
+            [finalPSD, concentration, G1, G2, supersaturation, m00, m31, m22, m21, m41, m23, t, temperature] = highRes2D_additiveCS(dL1,dL2, L1, L2, simulationTime, kg11, kg12, kg13, kg21, kg22, kg23, kd11, kd12, kd21, kd22, shapeFactor, particleDensity, initialConcentration, initialPSD, yieldFactor, maxCycleNumber, supersaturationLimits,growthFactor,solubilityFactor);
+            averageRadius = m31./m21;
+            averageHeight = m22./m21;
+            stdRadius = sqrt(abs(m41./m21 - averageRadius.^2));
+            stdHeight = sqrt(abs(m23./m21 - averageHeight.^2));
+    
+% aspect ratio plots:
+            figure(1)
+            if k == 1
+                tiles1 = tiledlayout(1,2,'Padding','compact','TileSpacing','compact','Units','inches');
+                tiles1.InnerPosition(1:2) = [3 3];
+                tiles1.InnerPosition(4) = 3.25;
+                tiles1.OuterPosition(3) = 7;
+                nexttile(1)
+                contourf(L1,L2,initialPSD./max(initialPSD(:)),[0.1 0.5 0.9],'FaceAlpha',0.5); % initial PSSD
+            end
+            nexttile(1)
+            hold on
+            plot(averageRadius, averageHeight,"LineWidth",1)
+            
+            % iso-volume plots:
+            l1 = 100:0.1:1000;
+            avgVolumemin = sum(L1.^4.*L2'.^2.*initialPSD,'all')*dL1*dL2/initialm21; %m42/m21 (volume-weighted average volume)
+            l2 = avgVolumemin./l1.^2;
+            plot(l1,l2,'--',"LineWidth",1) % lower bound
+            l2 = yieldFactor*avgVolumemin./l1.^2;
+            plot(l1,l2,'--',"LineWidth",1) % desired final volume
+    
+            % ideal aspect ratio:
+            plot(L2,L2,':',"LineWidth",1)
+            xlim([200 600]);
+            ylim([200 800]);
+    
+            % PSSD plots
+            contourf(L1,L2,finalPSD./max(finalPSD(:)), [0.1 0.5 0.9],'FaceAlpha',0.5); % final PSSD
+            text(averageRadius(end),averageHeight(end),{['    {\it c}_A=',num2str(additiveConcentration),' [kg kg^{-1}]']},'FontSize',10)
+            
+            if k == 2
+                set(gca,'FontSize',8,'FontName','times','TitleHorizontalAlignment','left')
+                colororder(gca,['#000000'; '#d00000';'#03045e'; '#808080'])
+                xlabel({['{\it L}_{1,V} [' char(181) 'm]']},'FontSize',10)
+                xticks(linspace(200,600,3))
+                ylabel({['{\it L}_{2,V} [' char(181) 'm]']},'FontSize',10)
+                yticks(linspace(200,800,4))
+                text(200,600,' {\it V_{min}}','FontSize',10,'Color','#d00000')
+                text(320,735,'{\it V_{max}}','FontSize',10,'Color','#03045e')
+                text(460,460,'  {\it L_1 = L_2}','FontSize',10,'Color','#808080')
+                text(averageRadius(1),averageHeight(1),{'','    Initial','    PSSD'},'FontSize',10)
+            end
+        end
+        
+
+        supersaturationRange = [1.1 1.2];
+        for k = 1:length(supersaturationRange)
+            Smax = supersaturationRange(k);
+            supersaturationLimits = [Smin Smax];
+
+% memory efficient high resolution solution:
+            [finalPSD, concentration, G1, G2, supersaturation, m00, m31, m22, m21, m41, m23, t, temperature] = highRes2D_additiveCS(dL1,dL2, L1, L2, simulationTime, kg11, kg12, kg13, kg21, kg22, kg23, kd11, kd12, kd21, kd22, shapeFactor, particleDensity, initialConcentration, initialPSD, yieldFactor, maxCycleNumber, supersaturationLimits,growthFactor,solubilityFactor);
+            averageRadius = m31./m21;
+            averageHeight = m22./m21;
+            stdRadius = sqrt(abs(m41./m21 - averageRadius.^2));
+            stdHeight = sqrt(abs(m23./m21 - averageHeight.^2));
+    
+% aspect ratio plots:
+            figure(1)
+            if k == 1
+                nexttile(2)
+                contourf(L1,L2,initialPSD./max(initialPSD(:)),[0.1 0.5 0.9],'FaceAlpha',0.5); % initial PSSD
+            end
+            nexttile(2)
+            hold on
+            plot(averageRadius, averageHeight,"LineWidth",1)
+            
+            % iso-volume plots:
+            l1 = 100:0.1:1000;
+            avgVolumemin = sum(L1.^4.*L2'.^2.*initialPSD,'all')*dL1*dL2/initialm21; %m42/m21 (volume-weighted average volume)
+            l2 = avgVolumemin./l1.^2;
+            plot(l1,l2,'--',"LineWidth",1) % lower bound
+            l2 = yieldFactor*avgVolumemin./l1.^2;
+            plot(l1,l2,'--',"LineWidth",1) % desired final volume
+    
+            % ideal aspect ratio:
+            plot(L2,L2,':',"LineWidth",1)
+            xlim([200 600]);
+            ylim([200 800]);
+    
+            % PSSD plots
+            contourf(L1,L2,finalPSD./max(finalPSD(:)), [0.1 0.5 0.9],'FaceAlpha',0.5); % final PSSD
+            text(averageRadius(end),averageHeight(end),{['     S=',num2str(Smax)]},'FontSize',10)
+            
+            if k == 2
+                set(gca,'FontSize',8,'FontName','times','TitleHorizontalAlignment','left')
+                colororder(gca,['#000000'; '#d00000';'#03045e'; '#808080'])
+                xlabel({['{\it L}_{1,V} [' char(181) 'm]']},'FontSize',10)
+                xticks(linspace(200,600,3))
+                ylabel({['{\it L}_{2,V} [' char(181) 'm]']},'FontSize',10)
+                yticks(linspace(200,800,4))
+                text(200,600,' {\it V_{min}}','FontSize',10,'Color','#d00000')
+                text(320,735,'{\it V_{max}}','FontSize',10,'Color','#03045e')
+                text(460,460,'  {\it L_1 = L_2}','FontSize',10,'Color','#808080')
+                text(averageRadius(1),averageHeight(1),{'','    Initial','    PSSD'},'FontSize',10)
+                
+                fig = gcf;
+                fig.WindowState = "maximized";
+
+                fileName = 'growth variation.pdf';
+                fpath = strcat(path,'Batch2D_additive\Attainable region growth\', folderName);
+                exportgraphics(tiles1, fullfile(fpath, fileName), 'ContentType','vector','Resolution',600,'BackgroundColor','none');
+            end
+        end
+
+        for k = 1:length(additiveRange)
+            additiveConcentration = additiveRange(k);
+            solubilityFactor = interp1(additiveFactors(1,:),additiveFactors(2,:),additiveRange(k)); % increase solubility appropriately
+            growthFactor = interp1(additiveFactors(1,:),additiveFactors(3,:),additiveRange(k)); % slows down rate of radius growth appropriately
+
+            Smax = supersaturationRange(k);
+            supersaturationLimits = [Smin Smax];
+
+            Tmax = (1/0.036)*log(cmax/(3.37*solubilityFactor));
+            Tmin = (1/0.036)*log(cmin/(3.37*solubilityFactor));
+
+            % memory efficient high resolution solution:
+            [finalPSD, concentration, G1, G2, supersaturation, m00, m31, m22, m21, m41, m23, t, temperature] = highRes2D_additiveCS(dL1,dL2, L1, L2, simulationTime, kg11, kg12, kg13, kg21, kg22, kg23, kd11, kd12, kd21, kd22, shapeFactor, particleDensity, initialConcentration, initialPSD, yieldFactor, maxCycleNumber, supersaturationLimits,growthFactor,solubilityFactor);
+            averageRadius = m31./m21;
+            averageHeight = m22./m21;
+            stdRadius = sqrt(abs(m41./m21 - averageRadius.^2));
+            stdHeight = sqrt(abs(m23./m21 - averageHeight.^2));
+            
+            if k == 1
+                figure(2)
+                plot(averageRadius, averageHeight,"LineWidth",1)
+                hold on
+                
+                % iso-volume plots:
+                l1 = 100:0.1:1000;
+                avgVolumemin = sum(L1.^4.*L2'.^2.*initialPSD,'all')*dL1*dL2/initialm21; %m42/m21 (volume-weighted average volume)
+                l2 = avgVolumemin./l1.^2;
+                plot(l1,l2,'--',"LineWidth",1) % lower bound
+                l2 = yieldFactor*avgVolumemin./l1.^2;
+                plot(l1,l2,'--',"LineWidth",1) % desired final volume
+        
+                % ideal aspect ratio:
+                plot(L2,L2,':',"LineWidth",1)
+                xlim([200 600]);
+                ylim([200 800]);
+        
+                % PSSD plots
+                contourf(L1,L2,initialPSD./max(initialPSD(:)),[0.1 0.5 0.9],'FaceAlpha',0.5); % initial PSSD
+                contourf(L1,L2,finalPSD./max(finalPSD(:)), [0.1 0.5 0.9],'FaceAlpha',0.5); % final PSSD
+                text(averageRadius(end),averageHeight(end),{'     Lower bound'},'FontSize',10)
+                
+                set(gca,'FontSize',8,'FontName','times','TitleHorizontalAlignment','left','Units','inches')
+                ax = gca;
+                ax.InnerPosition(1:2) = [3 3];
+                ax.InnerPosition(3:4) = [2.8 3];
+                colororder(gca,['#000000'; '#d00000';'#03045e'; '#808080'])
+                xlabel({['{\it L}_{1,V} [' char(181) 'm]']},'FontSize',10)
+                xticks(linspace(200,600,3))
+                ylabel({['{\it L}_{2,V} [' char(181) 'm]']},'FontSize',10)
+                yticks(linspace(200,800,4))
+                text(200,600,' {\it V_{min}}','FontSize',10,'Color','#d00000')
+                text(320,735,'{\it V_{max}}','FontSize',10,'Color','#03045e')
+                text(350,350,'  {\it L_1 = L_2}','FontSize',10,'Color','#808080')
+                text(averageRadius(1),averageHeight(1),{'','    Initial','    PSSD'},'FontSize',10)
+                
+                fig = gcf;
+                fig.WindowState = "maximized";
+            end
+            if k == 2
+                figure(2)
+                hold on
+                plot(averageRadius, averageHeight,"LineWidth",1)
+                contourf(L1,L2,finalPSD./max(finalPSD(:)), [0.1 0.5 0.9],'FaceAlpha',0.5); % final PSSD
+                text(averageRadius(end),averageHeight(end),{'     Upper bound'},'FontSize',10)
+
+                fileName = 'growth bounds.pdf';
+                fpath = strcat(path,'Batch2D_additive\Attainable region growth\', folderName);
+                exportgraphics(gca, fullfile(fpath, fileName), 'ContentType','vector','Resolution',600,'BackgroundColor','none');
+            end
+        end
+        fileName = 'simulation variables.mat';
+        fpath = strcat(path,'Batch2D_additive\Attainable region growth\', folderName);
+        save(fullfile(fpath, fileName))
         %% Powerpoint figures
     case 9
  % create a folder with the current date and time:
@@ -2075,6 +2009,4 @@ switch simulationMode
         fpath = strcat(path,'Batch2D_additive\Powerpoint figures\', folderName);
         writecell(parametersCell,fullfile(fpath,fileName))
 
-%% Attainable region pure growth
-    case 10
 end
